@@ -6,3 +6,10 @@ analysis/capture.wav
 
 # derived from the UF2 via scripts/uf2_to_bin.py
 firmware/*.bin
+
+# Ghidra project files
+some-ting.gpr
+some-ting.lock*
+some-ting.rep/
+*.gpr
+*.rep/
