@@ -21,8 +21,10 @@ except Exception:
 
 _stock_cb = teenage.python_callback
 
-TH_HI = 0.55          # squeeze past this -> "pressed"  (tune after testing)
-TH_LO = 0.30          # fall below this  -> "released"
+# Trigger at the FIRST/outer switch (start of travel), not the bottom stop.
+# Lowered from 0.55; we also show a live handle meter on the LEDs to calibrate.
+TH_HI = 0.10          # squeeze past this -> "pressed"
+TH_LO = 0.05          # fall below this  -> "released"
 _pressed = False
 
 def cb(message):
@@ -32,13 +34,16 @@ def cb(message):
         h = ui.handle()
     except Exception:
         return
+    # live handle meter: LED column level 0..3 tracks how far the handle is.
+    lvl = int(h * 3.999)
+    if lvl > 3:
+        lvl = 3
+    ui.leds(lvl, lvl)
     if (not _pressed) and h > TH_HI:
         _pressed = True
-        ui.leds(3, 3)                   # visual cue: keyed (may flicker vs stock)
         spl.trigger(-1, IN_SLOT, True)  # Quindar intro = talk START
     elif _pressed and h < TH_LO:
         _pressed = False
-        ui.leds(-1, 0)
         spl.trigger(-1, OUT_SLOT, True) # Quindar outro = talk STOP
 
 ui.callback(cb)
