@@ -74,3 +74,26 @@ With the GhidraMCP bridge connected (LaurieWired/GhidraMCP or similar), the loop
       FunctionID matching.
 
 Once those tools are live in the session, start at RE question #1 (boot flow).
+
+---
+## FINDINGS (RE via GhidraMCP)
+
+### Boot flow — RESOLVED: **Path A works** ✅
+Boot launcher `FUN_10026f2c` runs scripts via `pyexec` (`FUN_10025680`):
+- `FUN_10025a14("_boot_fat.py", 0)` — mount the FAT volume
+- `FUN_1001d83c("fat/main.py")` — **stat**: returns 0=absent, 1=dir, 2=regular file
+- if `== 2` → `FUN_10025a0c("fat/main.py")` → `pyexec` the **user main.py**
+- else → `FUN_10025a14("teenage.py", 1)` — run the stock frozen app
+
+So: **drop `main.py` on TINGDISK and the firmware executes it instead of the
+stock `teenage.py`.** No patching, no flashing. Fallback to stock = delete main.py.
+
+Verified functions:
+- `FUN_10025680` = pyexec (nlr push, lexer/parse/compile from file, execute).
+- `FUN_1001d83c` = stat (checks `mode & 0x4000` for dir → 2 for regular file).
+- `FUN_10025a0c(path)` = `pyexec(path, 1, 0x20)`; `FUN_10025a14(path,flag)` = run frozen.
+
+### Plan (revised, no patching)
+`main.py` on TINGDISK = stock `teenage.py` setup (source in
+`firmware/uf2_strings.txt`) + handle→Quindar layer. Tone via `spl` (load two
+WAVs) or `RING`. Test = copy file + power-cycle. PC daemon Goertzel-detects.
