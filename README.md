@@ -70,3 +70,21 @@ Can we produce a **modified-but-compatible UF2** locally? TE's native modules
 (`ui`/`spl`/`fx`) are closed, so a from-scratch MicroPython build can't drive the
 audio hardware. Likely path: **patch the frozen `main.py` inside the stock UF2**
 (add handle→Quindar logic) and flash via BOOTSEL, OR obtain TE source/SDK.
+
+## Running it (live)
+1. **Device:** `main.py` + `quindar_in.wav` + `quindar_out.wav` on TINGDISK
+   (deploy from `deploy/`). Use the **clean** preset + moderate volume.
+2. **Keybinding:** `~/.claude/keybindings.json` binds `f13` -> `voice:pushToTalk`
+   (Chat). **Restart Claude Code** so it loads the binding.
+3. **Audio:** the TING (front-mic input) must be the system **default input**
+   (it is) so both Claude's dictation and the daemon hear it.
+4. **Daemon** (separate terminal, keeps running):
+   `./venv/bin/python host/ptt_daemon.py`
+   - `--dry-run` to watch detections without keystrokes
+   - `--no-focus-guard` to inject regardless of focus
+   - focus guard only injects when a window with `claude` in its process tree is focused
+5. **Use:** focus the Claude Code window, **squeeze** the TING handle (intro tone
+   -> F13 down -> dictation records), talk, **release** (outro tone -> F13 up ->
+   sends). Needs a Claude.ai account (voice dictation isn't available on API keys).
+
+Prereqs installed: `xdotool`, venv has numpy/scipy/pyusb/mcp; `parec` for capture.
