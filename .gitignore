@@ -13,3 +13,5 @@ some-ting.lock*
 some-ting.rep/
 *.gpr
 *.rep/
+
+deploy/*.wav
