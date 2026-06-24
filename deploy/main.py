@@ -1,17 +1,18 @@
 # some-ting --- TING EP-2350 as a push-to-talk trigger for Claude voice.
 #
-# Runs the stock app unchanged (import teenage: mic passthrough, samples, fx),
-# then wraps the input callback so squeezing the handle emits a 2525 Hz Quindar
-# "intro" burst (talk-start) and releasing emits a 2475 Hz "outro" burst
-# (talk-stop). A PC daemon detects the tones and toggles voice dictation.
+# Runs the stock app unchanged (import teenage), then emits a 2525 Hz Quindar
+# "intro" burst when the FIRST/outer handle switch engages (talk-start) and a
+# 2475 Hz "outro" when it releases (talk-stop). A PC daemon detects the tones.
+#
+# This build triggers on a *binary* switch (the outer switch fires at the start
+# of travel; the analog ui.handle() only rises near the bottom). It also shows a
+# switch diagnostic on the LEDs so we can confirm which sw() index is which.
 #
 # To restore stock behavior: delete this main.py from TINGDISK.
 
-import teenage          # stock application (also chdir's to /fat); registers its callback
-import ui, spl
+import teenage          # stock app (chdir's to /fat); registers its callback
+import ui, spl, time
 
-# teenage.py left cwd at /fat, so these load straight off TINGDISK.
-# We sacrifice sample slots 2 and 3 to hold the two Quindar tones.
 IN_SLOT, OUT_SLOT = 2, 3
 try:
     f = open("quindar_in.wav", "rb");  spl.load_wav(IN_SLOT, f, "oneshot");  f.close()
@@ -21,29 +22,32 @@ except Exception:
 
 _stock_cb = teenage.python_callback
 
-# Trigger at the FIRST/outer switch (start of travel), not the bottom stop.
-# Lowered from 0.55; we also show a live handle meter on the LEDs to calibrate.
-TH_HI = 0.10          # squeeze past this -> "pressed"
-TH_LO = 0.05          # fall below this  -> "released"
+time.sleep_ms(200)
+REST = [ui.sw(i) for i in range(5)]    # switch states at boot (handle released)
+TRIG = 4                               # switch that drives the tone (hypothesis: outer)
 _pressed = False
 
 def cb(message):
     global _pressed
-    _stock_cb(message)                  # preserve every stock behavior
+    _stock_cb(message)                 # preserve all stock behavior
     try:
-        h = ui.handle()
+        s = [ui.sw(i) for i in range(5)]
     except Exception:
         return
-    # live handle meter: LED column level 0..3 tracks how far the handle is.
-    lvl = int(h * 3.999)
-    if lvl > 3:
-        lvl = 3
-    ui.leds(lvl, lvl)
-    if (not _pressed) and h > TH_HI:
+    # Diagnostic LEDs: fx column = first sw in 0..3 that changed from rest (else off);
+    #                  sample column = 3 if sw(4) changed from rest, else 0.
+    diff = -1
+    for i in range(4):
+        if s[i] != REST[i]:
+            diff = i; break
+    ui.leds(diff, 3 if s[4] != REST[4] else 0)
+    # Tone trigger: chosen switch changed from its rest state = engaged.
+    on = (s[TRIG] != REST[TRIG])
+    if on and not _pressed:
         _pressed = True
-        spl.trigger(-1, IN_SLOT, True)  # Quindar intro = talk START
-    elif _pressed and h < TH_LO:
+        spl.trigger(-1, IN_SLOT, True)     # Quindar intro = talk START
+    elif (not on) and _pressed:
         _pressed = False
-        spl.trigger(-1, OUT_SLOT, True) # Quindar outro = talk STOP
+        spl.trigger(-1, OUT_SLOT, True)    # Quindar outro = talk STOP
 
 ui.callback(cb)
