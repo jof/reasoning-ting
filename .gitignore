@@ -15,3 +15,5 @@ some-ting.rep/
 *.rep/
 
 deploy/*.wav
+
+analysis/*.wav

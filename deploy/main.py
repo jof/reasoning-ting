@@ -1,19 +1,19 @@
 # some-ting --- TING EP-2350 as a push-to-talk trigger for Claude voice.
 #
 # Runs the stock app unchanged (import teenage), then emits a 2525 Hz Quindar
-# "intro" burst when the FIRST/outer handle switch engages (talk-start) and a
-# 2475 Hz "outro" when it releases (talk-stop). A PC daemon detects the tones.
+# "intro" burst when the outer handle switch engages (talk-start) and a 2475 Hz
+# "outro" when it releases (talk-stop). A PC daemon Goertzel-detects the tones
+# and toggles Claude's voice dictation.
 #
-# This build triggers on a *binary* switch (the outer switch fires at the start
-# of travel; the analog ui.handle() only rises near the bottom). It also shows a
-# switch diagnostic on the LEDs so we can confirm which sw() index is which.
+# Use the CLEAN effect preset and a moderate volume (the green knob under the
+# lid): effects color the tone and the 2 VRMS output overloads a mic input.
 #
 # To restore stock behavior: delete this main.py from TINGDISK.
 
 import teenage          # stock app (chdir's to /fat); registers its callback
 import ui, spl, time
 
-IN_SLOT, OUT_SLOT = 2, 3
+IN_SLOT, OUT_SLOT = 2, 3                 # sacrifice sample slots 2/3 for the tones
 try:
     f = open("quindar_in.wav", "rb");  spl.load_wav(IN_SLOT, f, "oneshot");  f.close()
     f = open("quindar_out.wav", "rb"); spl.load_wav(OUT_SLOT, f, "oneshot"); f.close()
@@ -23,31 +23,22 @@ except Exception:
 _stock_cb = teenage.python_callback
 
 time.sleep_ms(200)
-REST = [ui.sw(i) for i in range(5)]    # switch states at boot (handle released)
-TRIG = 4                               # switch that drives the tone (hypothesis: outer)
+SW = 4                                    # outer/first handle switch (mic-on gate)
+REST = ui.sw(SW)                          # its released state at boot
 _pressed = False
 
 def cb(message):
     global _pressed
-    _stock_cb(message)                 # preserve all stock behavior
+    _stock_cb(message)                    # preserve all stock behavior
     try:
-        s = [ui.sw(i) for i in range(5)]
+        on = (ui.sw(SW) != REST)          # outer switch engaged
     except Exception:
         return
-    # Diagnostic LEDs: fx column = first sw in 0..3 that changed from rest (else off);
-    #                  sample column = 3 if sw(4) changed from rest, else 0.
-    diff = -1
-    for i in range(4):
-        if s[i] != REST[i]:
-            diff = i; break
-    ui.leds(diff, 3 if s[4] != REST[4] else 0)
-    # Tone trigger: chosen switch changed from its rest state = engaged.
-    on = (s[TRIG] != REST[TRIG])
     if on and not _pressed:
         _pressed = True
-        spl.trigger(-1, IN_SLOT, True)     # Quindar intro = talk START
+        spl.trigger(-1, IN_SLOT, True)    # Quindar intro = talk START
     elif (not on) and _pressed:
         _pressed = False
-        spl.trigger(-1, OUT_SLOT, True)    # Quindar outro = talk STOP
+        spl.trigger(-1, OUT_SLOT, True)   # Quindar outro = talk STOP
 
 ui.callback(cb)
