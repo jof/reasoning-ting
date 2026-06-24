@@ -65,11 +65,13 @@ devices). A truly isolated controller, or offline flashing, avoids the risk.
   incl. the frozen `main.py` source and embedded config.json docs).
 - `analysis/` — acoustic click study (rejected approach).
 
-## Open question / next
-Can we produce a **modified-but-compatible UF2** locally? TE's native modules
-(`ui`/`spl`/`fx`) are closed, so a from-scratch MicroPython build can't drive the
-audio hardware. Likely path: **patch the frozen `main.py` inside the stock UF2**
-(add handle→Quindar logic) and flash via BOOTSEL, OR obtain TE source/SDK.
+## Approach taken (resolved)
+A from-scratch UF2 is infeasible (TE's `ui`/`spl`/`fx` are closed). But Ghidra RE
+of the boot path showed the firmware runs **`fat/main.py` from TINGDISK if present**
+(else the frozen `teenage.py`) — see `docs/reverse-engineering.md`. So **no
+patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
+(stock app) + a handle→Quindar layer. Proven end-to-end (clean 2525/2475 tones,
+~290x detection margin).
 
 ## Running it (live)
 1. **Device:** `main.py` + `quindar_in.wav` + `quindar_out.wav` on TINGDISK
