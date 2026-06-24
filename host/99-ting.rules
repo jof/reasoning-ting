@@ -1,0 +1,3 @@
+# Teenage Engineering TING EP-2350 (normal mode + RP2350 bootrom share VID/PID 2367:0620)
+# Grant the local user raw USB access (for libusb/pyusb), and keep ModemManager away.
+SUBSYSTEM=="usb", ATTR{idVendor}=="2367", ATTR{idProduct}=="0620", MODE="0660", GROUP="plugdev", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
