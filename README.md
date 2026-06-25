@@ -76,6 +76,11 @@ patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
 ## Running it (live)
 1. **Device:** `main.py` + `quindar_in.wav` + `quindar_out.wav` on TINGDISK
    (deploy from `deploy/`). Use the **clean** preset + moderate volume.
+   **⚠️ Then EJECT TINGDISK on the host and restart the TING.** USB mass storage
+   is exclusive: while the host has TINGDISK mounted, the device can't run
+   `fat/main.py` and boots the stock frozen app (stock sounds, no tones). The
+   modded firmware only runs when the *device* owns its filesystem. The daemon
+   uses the analog audio, not the disk, so leave TINGDISK ejected.
 2. **Keybinding:** `~/.claude/keybindings.json` binds `f12` -> `voice:pushToTalk`
    (Chat). **Restart Claude Code** so it loads the binding.
 3. **Audio:** the TING (front-mic input) must be the system **default input**
