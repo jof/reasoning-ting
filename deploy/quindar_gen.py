@@ -26,3 +26,4 @@ def gen(path, freq):
 here = os.path.dirname(os.path.abspath(__file__))
 gen(os.path.join(here, "quindar_in.wav"), 2525)   # press / start
 gen(os.path.join(here, "quindar_out.wav"), 2475)  # release / stop
+gen(os.path.join(here, "submit.wav"), 3000)       # white button / submit (-> Enter)

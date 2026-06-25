@@ -90,9 +90,11 @@ patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
    - `--dry-run` to watch detections without keystrokes
    - `--no-focus-guard` to inject regardless of focus
    - focus guard only injects when a window with `claude` in its process tree is focused
-5. **Use:** focus the Claude Code window, **squeeze** the TING handle (intro tone
-   -> F12 down -> dictation records), talk, **release** (outro tone -> F12 up ->
-   sends). Needs a Claude.ai account (voice dictation isn't available on API keys).
+5. **Use:** focus Claude, **squeeze** the handle (2525 Hz → F12 down → dictation
+   records), talk, **release** (2475 Hz → F12 up → transcript drops into the
+   input). Repeat to dictate multiple chunks; press the **white button**
+   (3000 Hz → Enter) to submit when ready. Needs a Claude.ai account (voice
+   isn't available on API keys). Max-hold safety defaults to 600 s.
 
 Prereqs installed: `xdotool`, venv has numpy/scipy/pyusb/mcp; `parec` for capture.
 

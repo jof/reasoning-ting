@@ -11,11 +11,14 @@ pub enum Event {
     Intro,
     /// 2475 Hz burst — handle released, talk STOP.
     Outro,
+    /// submit-tone burst (other button) — press Enter / submit.
+    Submit,
 }
 
 pub struct Params {
     pub f_intro: f32,
     pub f_outro: f32,
+    pub f_submit: f32,
     pub win_secs: f32,
     pub hop_secs: f32,
     pub threshold: f32,
@@ -28,6 +31,7 @@ impl Default for Params {
         Self {
             f_intro: 2525.0,
             f_outro: 2475.0,
+            f_submit: 3000.0,
             win_secs: 0.085,
             hop_secs: 0.021,
             threshold: 0.008,
@@ -43,6 +47,7 @@ pub struct Detector {
     // hann-windowed complex reference vectors: (re, im) of w[i]*exp(-j2pi f i / sr)
     ref_in: Vec<(f32, f32)>,
     ref_out: Vec<(f32, f32)>,
+    ref_submit: Vec<(f32, f32)>,
     buf: Vec<f32>, // ring buffer of the last `win` samples
     pos: usize,    // index of the oldest sample in `buf`
     filled: usize,
@@ -54,6 +59,7 @@ pub struct Detector {
     held: bool,
     last_in: f32,
     last_out: f32,
+    last_submit: f32,
 }
 
 impl Detector {
@@ -76,6 +82,7 @@ impl Detector {
             hop,
             ref_in: mk(p.f_intro),
             ref_out: mk(p.f_outro),
+            ref_submit: mk(p.f_submit),
             buf: vec![0.0; win],
             pos: 0,
             filled: 0,
@@ -87,12 +94,13 @@ impl Detector {
             held: false,
             last_in: 0.0,
             last_out: 0.0,
+            last_submit: 0.0,
         }
     }
 
-    /// Most recent windowed magnitudes at (2525, 2475) — for the live meter.
-    pub fn mags(&self) -> (f32, f32) {
-        (self.last_in, self.last_out)
+    /// Most recent windowed magnitudes at (intro, outro, submit) — for the meter.
+    pub fn mags(&self) -> (f32, f32, f32) {
+        (self.last_in, self.last_out, self.last_submit)
     }
 
     /// True while the daemon believes the handle is squeezed (key held down).
@@ -121,39 +129,56 @@ impl Detector {
         }
         self.since_hop = 0;
 
-        // windowed-DFT magnitude at both tones (iterate oldest->newest)
-        let (mut ri, mut ii, mut ro, mut io) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+        // windowed-DFT magnitude at all three tones (iterate oldest->newest)
+        let (mut ri, mut ii, mut ro, mut io, mut rs, mut isu) =
+            (0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32);
         for k in 0..self.win {
             let x = self.buf[(self.pos + k) % self.win];
             let (cr, ci) = self.ref_in[k];
             let (dr, di) = self.ref_out[k];
+            let (er, ei) = self.ref_submit[k];
             ri += x * cr;
             ii += x * ci;
             ro += x * dr;
             io += x * di;
+            rs += x * er;
+            isu += x * ei;
         }
         let w = self.win as f32;
         let m_in = (ri * ri + ii * ii).sqrt() / w;
         let m_out = (ro * ro + io * io).sqrt() / w;
+        let m_submit = (rs * rs + isu * isu).sqrt() / w;
         self.last_in = m_in;
         self.last_out = m_out;
+        self.last_submit = m_submit;
 
-        let (hi, lo, is_intro) = if m_in >= m_out {
-            (m_in, m_out, true)
-        } else {
-            (m_out, m_in, false)
-        };
+        // dominant tone + the strongest of the other two (level-independent ratio)
+        let cand = [(m_in, 0u8), (m_out, 1u8), (m_submit, 2u8)];
+        let (hi, which) = cand
+            .iter()
+            .cloned()
+            .fold((0.0f32, 0u8), |a, b| if b.0 > a.0 { b } else { a });
+        let second = cand
+            .iter()
+            .filter(|c| c.1 != which)
+            .map(|c| c.0)
+            .fold(0.0f32, f32::max);
         if hi > self.threshold
-            && hi > self.min_ratio * (lo + 1e-9)
+            && hi > self.min_ratio * (second + 1e-9)
             && self.since_evt > self.refractory
         {
             self.since_evt = 0;
-            if is_intro && !self.held {
-                self.held = true;
-                return Some(Event::Intro);
-            } else if !is_intro && self.held {
-                self.held = false;
-                return Some(Event::Outro);
+            match which {
+                0 if !self.held => {
+                    self.held = true;
+                    return Some(Event::Intro);
+                }
+                1 if self.held => {
+                    self.held = false;
+                    return Some(Event::Outro);
+                }
+                2 => return Some(Event::Submit),
+                _ => {}
             }
         }
         None
@@ -202,6 +227,14 @@ mod tests {
         // a 300 Hz "voice-ish" tone must not trigger
         let evs = feed_tone(&mut d, sr, 300.0, 0.5, 0.3);
         assert!(evs.is_empty(), "voice-band tone must not trigger: {evs:?}");
+    }
+
+    #[test]
+    fn detects_submit_tone() {
+        let sr = 48000.0;
+        let mut d = Detector::new(sr, &Params::default());
+        let e = feed_tone(&mut d, sr, 3000.0, 0.2, 0.4);
+        assert_eq!(e.first(), Some(&Event::Submit), "submit on 3000 Hz");
     }
 
     #[test]

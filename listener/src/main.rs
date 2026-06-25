@@ -35,9 +35,13 @@ struct Args {
     /// Detection magnitude threshold.
     #[arg(long, default_value_t = 0.008)]
     threshold: f32,
-    /// Safety: force key-up after this many seconds held.
-    #[arg(long, default_value_t = 30.0)]
+    /// Safety: force key-up after this many seconds held (detection is reliable,
+    /// so this is just a backstop against a missed release tone).
+    #[arg(long, default_value_t = 600.0)]
     max_hold: f32,
+    /// Key tapped on the submit tone (must match a Claude binding; default Enter).
+    #[arg(long, default_value = "enter")]
+    submit_key: String,
     /// Inject regardless of which window is focused.
     #[arg(long)]
     no_focus_guard: bool,
@@ -67,6 +71,9 @@ struct Args {
     /// Outro (release) tone frequency, Hz.
     #[arg(long, default_value_t = 2475.0)]
     f_outro: f32,
+    /// Submit tone frequency, Hz (other button -> Enter).
+    #[arg(long, default_value_t = 3000.0)]
+    f_submit: f32,
 }
 
 fn main() -> Result<()> {
@@ -87,6 +94,7 @@ fn main() -> Result<()> {
         threshold: args.threshold,
         f_intro: args.f_intro,
         f_outro: args.f_outro,
+        f_submit: args.f_submit,
         ..Default::default()
     };
     match &args.wav {
@@ -139,6 +147,7 @@ fn run_wav(path: &str, params: &Params) -> Result<()> {
 
 fn run_live(args: &Args, params: Params) -> Result<()> {
     let key = inject::parse_key(&args.key)?;
+    let submit_key = inject::parse_key(&args.submit_key)?;
     let guard = focus::make(args.no_focus_guard, args.focus_proc.clone());
     let mut injector = if args.dry_run {
         None
@@ -213,13 +222,23 @@ fn run_live(args: &Args, params: Params) -> Result<()> {
                                     }
                                     log_event(meter, &format!("OUTRO/2475 -> SEND  (keyup {})", args.key));
                                 }
+                                Event::Submit => {
+                                    if !guard.allowed() {
+                                        log_event(meter, "SUBMIT  (ignored: target window not focused)");
+                                        continue;
+                                    }
+                                    if let Some(inj) = injector.as_mut() {
+                                        inj.tap(submit_key);
+                                    }
+                                    log_event(meter, &format!("SUBMIT/{:.0} -> ENTER (tap {})", args.f_submit, args.submit_key));
+                                }
                             }
                         }
                         meter_ctr += 1;
                         if meter && meter_ctr >= meter_interval {
                             meter_ctr = 0;
-                            let (mi, mo) = det.mags();
-                            draw_meter(peak, mi, mo, threshold, det.held());
+                            let (mi, mo, ms) = det.mags();
+                            draw_meter(peak, mi, mo, ms, threshold, det.held());
                             peak = 0.0;
                         }
                     }
@@ -262,25 +281,28 @@ fn log_event(meter: bool, msg: &str) {
     }
 }
 
-/// In-place input meter: level bar + live 2525/2475 magnitudes vs threshold.
-fn draw_meter(peak: f32, m_in: f32, m_out: f32, thr: f32, held: bool) {
+/// In-place input meter: level bar + live intro/outro/submit magnitudes vs threshold.
+fn draw_meter(peak: f32, m_in: f32, m_out: f32, m_submit: f32, thr: f32, held: bool) {
     let db = 20.0 * (peak + 1e-9).log10();
-    let filled = (((db + 60.0) / 60.0).clamp(0.0, 1.0) * 24.0) as usize;
-    let bar: String = (0..24)
+    let filled = (((db + 60.0) / 60.0).clamp(0.0, 1.0) * 18.0) as usize;
+    let bar: String = (0..18)
         .map(|i| if i < filled { '#' } else { ' ' })
         .collect();
-    let hot = if m_in.max(m_out) > thr {
-        if m_in >= m_out {
-            "2525!"
+    let top = m_in.max(m_out).max(m_submit);
+    let hot = if top > thr {
+        if top == m_in {
+            "IN! "
+        } else if top == m_out {
+            "OUT!"
         } else {
-            "2475!"
+            "SUB!"
         }
     } else {
-        "     "
+        "    "
     };
     let state = if held { "KEYED" } else { "     " };
     eprint!(
-        "\r\x1b[Kin |{bar}| {db:>4.0}dB  2525={m_in:.4} 2475={m_out:.4} thr={thr:.3} {hot} {state}"
+        "\r\x1b[Kin |{bar}| {db:>4.0}dB in={m_in:.4} out={m_out:.4} sub={m_submit:.4} thr={thr:.3} {hot} {state}"
     );
     let _ = std::io::stderr().flush();
 }
@@ -422,5 +444,6 @@ fn label(ev: Event) -> &'static str {
     match ev {
         Event::Intro => "INTRO/2525 -> START",
         Event::Outro => "OUTRO/2475 -> SEND",
+        Event::Submit => "SUBMIT/3000 -> ENTER",
     }
 }

@@ -22,6 +22,10 @@ impl Injector {
     pub fn up(&mut self) {
         let _ = self.enigo.key(self.key, Direction::Release);
     }
+    /// Tap (press+release) an arbitrary key — used for the submit/Enter key.
+    pub fn tap(&mut self, key: Key) {
+        let _ = self.enigo.key(key, Direction::Click);
+    }
 }
 
 /// Parse a key name (matching what's set in ~/.claude/keybindings.json).
