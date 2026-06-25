@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- some-ting app icon: a "transmit" ring (matches the tray Listening glyph in
+     listener/src/icon.rs) with Quindar/Apollo broadcast arcs. Scalable. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#23233a"/>
+      <stop offset="1" stop-color="#141425"/>
+    </linearGradient>
+  </defs>
+
+  <!-- rounded-square backdrop -->
+  <rect x="8" y="8" width="240" height="240" rx="52" ry="52" fill="url(#bg)"/>
+
+  <!-- broadcast arcs (radio waves) -->
+  <g fill="none" stroke="#28b95f" stroke-linecap="round" opacity="0.55">
+    <path d="M 168 92 A 52 52 0 0 1 168 164" stroke-width="7"/>
+    <path d="M 188 74 A 78 78 0 0 1 188 182" stroke-width="6" opacity="0.7"/>
+  </g>
+  <g fill="none" stroke="#28b95f" stroke-linecap="round" opacity="0.55">
+    <path d="M 88 92 A 52 52 0 0 0 88 164" stroke-width="7"/>
+    <path d="M 68 74 A 78 78 0 0 0 68 182" stroke-width="6" opacity="0.7"/>
+  </g>
+
+  <!-- transmit ring + center dot (the Listening state) -->
+  <circle cx="128" cy="128" r="44" fill="none" stroke="#28b95f" stroke-width="13"/>
+  <circle cx="128" cy="128" r="15" fill="#28b95f"/>
+</svg>

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=some-ting
+GenericName=TING push-to-talk
+Comment=TING handle → Quindar tones → Claude Code voice push-to-talk
+Exec=some-ting
+Icon=com.thejof.SomeTing
+Terminal=false
+Categories=Utility;
+Keywords=voice;dictation;push-to-talk;claude;ting;quindar;
+# Menu-bar / status-tray app — no main window.
+StartupNotify=false
