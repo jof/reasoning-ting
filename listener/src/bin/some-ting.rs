@@ -3,10 +3,12 @@
 //!   cargo build --release --features gui --bin some-ting
 //! (Linux needs gtk3 + libayatana-appindicator dev packages; macOS/Windows don't.)
 //!
+//! Run with `--dry-run` to detect + show status WITHOUT sending keystrokes.
+//!
 //! Menu: status · Pause/Resume · Input device · Sensitivity · Write Claude
-//! keybinding · Quit. Still scaffold-level: no persisted prefs, no macOS
-//! permission/onboarding flow yet (next), placeholder solid-color icon.
+//! keybinding · Quit. TODO: Setup wizard, persisted prefs, launch-at-login.
 
+use some_ting::icon::{self, IconState};
 use some_ting::{audio, Config, Params, Status};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
@@ -17,23 +19,28 @@ use tray_icon::{
     Icon, TrayIcon, TrayIconBuilder,
 };
 
-/// (label, threshold) — lower threshold = more sensitive.
 const SENS: [(&str, f32); 3] = [
     ("High (0.002)", 0.002),
     ("Medium (0.008)", 0.008),
     ("Low (0.020)", 0.020),
 ];
 
-fn solid_icon(rgb: [u8; 3]) -> Icon {
-    let (w, h) = (18u32, 18u32);
-    let mut rgba = Vec::with_capacity((w * h * 4) as usize);
-    for _ in 0..w * h {
-        rgba.extend_from_slice(&[rgb[0], rgb[1], rgb[2], 255]);
-    }
-    Icon::from_rgba(rgba, w, h).expect("icon")
+fn make_icon(state: IconState) -> Icon {
+    Icon::from_rgba(icon::rgba(state), icon::SIZE, icon::SIZE).expect("icon")
 }
 
-fn base_config() -> Config {
+/// Set the tray icon only when the state actually changes (avoid churn — the
+/// engine emits Level ~15×/s).
+fn set_state(tray: &Option<TrayIcon>, cur: &mut IconState, want: IconState) {
+    if *cur != want {
+        *cur = want;
+        if let Some(t) = tray {
+            let _ = t.set_icon(Some(make_icon(want)));
+        }
+    }
+}
+
+fn base_config(dry_run: bool) -> Config {
     Config {
         device: None,
         key: "f12".into(),
@@ -42,7 +49,7 @@ fn base_config() -> Config {
         max_hold_secs: 600.0,
         focus_guard: true,
         focus_proc: "claude".into(),
-        dry_run: false,
+        dry_run,
     }
 }
 
@@ -64,12 +71,6 @@ fn restart(slot: &mut Option<Arc<AtomicBool>>, cfg: &Config, tx: &mpsc::Sender<S
     }
     if !paused {
         *slot = Some(spawn_engine(cfg, tx.clone()));
-    }
-}
-
-fn set_icon(tray: &Option<TrayIcon>, rgb: [u8; 3]) {
-    if let Some(t) = tray {
-        let _ = t.set_icon(Some(solid_icon(rgb)));
     }
 }
 
@@ -98,8 +99,10 @@ fn write_keybinding() -> String {
 }
 
 fn main() {
+    let dry_run = std::env::args().any(|a| a == "--dry-run");
+
     let (tx, rx) = mpsc::channel::<Status>();
-    let mut cfg = base_config();
+    let mut cfg = base_config(dry_run);
     let mut engine: Option<Arc<AtomicBool>> = Some(spawn_engine(&cfg, tx.clone()));
     let mut paused = false;
 
@@ -145,29 +148,34 @@ fn main() {
 
     let menu_events = MenuEvent::receiver();
     let mut tray: Option<TrayIcon> = None;
+    let mut tray_tried = false;
+    let mut icon_state = IconState::Idle;
 
     event_loop.run(move |_event, _, control_flow| {
         *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(100));
 
-        if tray.is_none() {
-            tray = Some(
-                TrayIconBuilder::new()
-                    .with_menu(Box::new(menu.clone()))
-                    .with_tooltip("some-ting — TING push-to-talk")
-                    .with_icon(solid_icon([130, 130, 130]))
-                    .build()
-                    .expect("build tray"),
-            );
+        if !tray_tried {
+            tray_tried = true;
+            match TrayIconBuilder::new()
+                .with_menu(Box::new(menu.clone()))
+                .with_tooltip("some-ting — TING push-to-talk")
+                .with_icon(make_icon(IconState::Idle))
+                .build()
+            {
+                Ok(t) => tray = Some(t),
+                Err(e) => eprintln!("tray unavailable ({e}); running headless (no SNI host?)"),
+            }
         }
 
         while let Ok(st) = rx.try_recv() {
             match st {
                 Status::Listening { sample_rate } => {
                     let _ = status.set_text(format!("● listening @ {sample_rate} Hz"));
-                    set_icon(&tray, [0, 170, 60]);
+                    set_state(&tray, &mut icon_state, IconState::Listening);
                 }
                 Status::Reconnecting => {
                     let _ = status.set_text("… reconnecting");
+                    set_state(&tray, &mut icon_state, IconState::Idle);
                 }
                 Status::Event { event, acted } => {
                     let _ = status.set_text(format!(
@@ -176,10 +184,15 @@ fn main() {
                     ));
                 }
                 Status::Level { held, .. } => {
-                    set_icon(&tray, if held { [220, 40, 40] } else { [0, 170, 60] });
+                    set_state(
+                        &tray,
+                        &mut icon_state,
+                        if held { IconState::Keyed } else { IconState::Listening },
+                    );
                 }
                 Status::Error(e) => {
                     let _ = status.set_text(format!("error: {e}"));
+                    set_state(&tray, &mut icon_state, IconState::Idle);
                 }
             }
         }
@@ -199,7 +212,7 @@ fn main() {
                         s.store(true, Ordering::Relaxed);
                     }
                     let _ = status.set_text("paused");
-                    set_icon(&tray, [130, 130, 130]);
+                    set_state(&tray, &mut icon_state, IconState::Paused);
                 } else {
                     engine = Some(spawn_engine(&cfg, tx.clone()));
                 }

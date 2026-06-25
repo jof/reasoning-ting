@@ -4,6 +4,7 @@
 pub mod audio;
 pub mod detect;
 pub mod focus;
+pub mod icon;
 pub mod inject;
 
 pub use detect::{Event, Params};
