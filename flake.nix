@@ -46,6 +46,13 @@
         };
       in
       {
+        # NOTE (Linux): these packages BUILD fine and are useful for CI and for
+        # the macOS .app, but a hermetic Nix-closure binary is NOT a valid Linux
+        # *desktop-audio* runtime. It links Nix's own libasound, whose ALSA
+        # plugin path can't load the host pipewire-alsa bridge, so opening the
+        # PipeWire `default` device fails with ENXIO. For the Linux runtime,
+        # build host-linked (`cargo build --release --features gui`) and install
+        # with packaging/linux/install.sh. See docs/PACKAGING.md.
         packages = {
           # CLI (default features)
           listener = rustPlatform.buildRustPackage (common // {
@@ -74,9 +81,15 @@
           buildInputs = buildDeps;
           shellHook = lib.optionalString stdenv.isLinux ''
             export XDG_DATA_DIRS="${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
-            echo "some-ting devshell: cargo + gtk3/alsa/libxdo + snixembed ready"
-            echo "  cargo run --features gui --bin some-ting   # the tray"
-            echo "  snixembed &                                 # bridge SNI -> i3bar"
+            echo "some-ting devshell: cargo + gtk3/alsa/libxdo + snixembed + clippy ready"
+            echo "  cargo clippy --features gui   # lint     |  cargo test   # detector/icon tests"
+            echo "  snixembed &                   # SNI -> i3bar tray host"
+            echo
+            echo "  NOTE: a binary built INSIDE this shell links Nix's libasound and"
+            echo "  cannot open the host PipeWire 'default' device (ENXIO). To RUN the"
+            echo "  Linux audio app, build with the host toolchain instead:"
+            echo "    (exit; cd listener && cargo build --release --features gui)"
+            echo "  then ../packaging/linux/install.sh.  See docs/PACKAGING.md."
           '';
         };
       });
