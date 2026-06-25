@@ -52,6 +52,8 @@ pub struct Detector {
     refractory: usize,
     since_evt: usize,
     held: bool,
+    last_in: f32,
+    last_out: f32,
 }
 
 impl Detector {
@@ -83,7 +85,14 @@ impl Detector {
             refractory: (p.refractory_secs * sample_rate) as usize,
             since_evt: usize::MAX / 2,
             held: false,
+            last_in: 0.0,
+            last_out: 0.0,
         }
+    }
+
+    /// Most recent windowed magnitudes at (2525, 2475) — for the live meter.
+    pub fn mags(&self) -> (f32, f32) {
+        (self.last_in, self.last_out)
     }
 
     /// True while the daemon believes the handle is squeezed (key held down).
@@ -126,6 +135,8 @@ impl Detector {
         let w = self.win as f32;
         let m_in = (ri * ri + ii * ii).sqrt() / w;
         let m_out = (ro * ro + io * io).sqrt() / w;
+        self.last_in = m_in;
+        self.last_out = m_out;
 
         let (hi, lo, is_intro) = if m_in >= m_out {
             (m_in, m_out, true)

@@ -12,6 +12,7 @@ mod inject;
 use anyhow::Result;
 use clap::Parser;
 use detect::{Detector, Event, Params};
+use std::io::{IsTerminal, Write};
 use std::sync::mpsc::RecvTimeoutError;
 use std::time::Duration;
 
@@ -120,6 +121,9 @@ fn run_live(args: &Args, params: Params) -> Result<()> {
     } else {
         Some(inject::Injector::new(key)?)
     };
+    // Live input meter only when stderr is an interactive TTY (not a service/pipe).
+    let meter = std::io::stderr().is_terminal();
+    let threshold = params.threshold;
 
     // Reconnect loop: a live mic streams continuously (even silence), so a
     // sustained read timeout means the device died -> rebuild the stream.
@@ -137,11 +141,15 @@ fn run_live(args: &Args, params: Params) -> Result<()> {
         let max_hold_samples = (args.max_hold * sr) as u64;
         let mut held_samples: u64 = 0;
         let mut stalls = 0;
+        let meter_interval = (sr / 15.0) as usize; // ~66 ms refresh
+        let mut meter_ctr = 0usize;
+        let mut peak = 0f32;
         eprintln!(
-            "listening @ {sr} Hz  key={}  focus_guard={}  dry_run={}",
+            "listening @ {sr} Hz  key={}  focus_guard={}  dry_run={}{}",
             args.key,
             !args.no_focus_guard,
-            args.dry_run
+            args.dry_run,
+            if meter { "  (live meter below)" } else { "" }
         );
 
         loop {
@@ -149,6 +157,7 @@ fn run_live(args: &Args, params: Params) -> Result<()> {
                 Ok(block) => {
                     stalls = 0;
                     for &s in &block {
+                        peak = peak.max(s.abs());
                         if det.held() {
                             held_samples += 1;
                             if held_samples >= max_hold_samples {
@@ -157,7 +166,7 @@ fn run_live(args: &Args, params: Params) -> Result<()> {
                                 }
                                 det.set_held(false);
                                 held_samples = 0;
-                                println!("(safety key-up after {:.0}s held)", args.max_hold);
+                                log_event(meter, &format!("(safety key-up after {:.0}s held)", args.max_hold));
                             }
                         }
                         if let Some(ev) = det.push(s) {
@@ -165,29 +174,36 @@ fn run_live(args: &Args, params: Params) -> Result<()> {
                                 Event::Intro => {
                                     if !guard.allowed() {
                                         det.set_held(false);
-                                        println!("INTRO  (ignored: target window not focused)");
+                                        log_event(meter, "INTRO  (ignored: target window not focused)");
                                         continue;
                                     }
                                     held_samples = 0;
                                     if let Some(inj) = injector.as_mut() {
                                         inj.down();
                                     }
-                                    println!("INTRO/2525 -> START (keydown {})", args.key);
+                                    log_event(meter, &format!("INTRO/2525 -> START (keydown {})", args.key));
                                 }
                                 Event::Outro => {
                                     if let Some(inj) = injector.as_mut() {
                                         inj.up();
                                     }
-                                    println!("OUTRO/2475 -> SEND  (keyup {})", args.key);
+                                    log_event(meter, &format!("OUTRO/2475 -> SEND  (keyup {})", args.key));
                                 }
                             }
+                        }
+                        meter_ctr += 1;
+                        if meter && meter_ctr >= meter_interval {
+                            meter_ctr = 0;
+                            let (mi, mo) = det.mags();
+                            draw_meter(peak, mi, mo, threshold, det.held());
+                            peak = 0.0;
                         }
                     }
                 }
                 Err(RecvTimeoutError::Timeout) => {
                     stalls += 1;
                     if stalls >= 3 {
-                        eprintln!("audio stalled (~9s no input); reconnecting...");
+                        eprintln!("\naudio stalled (~9s no input); reconnecting...");
                         if det.held() {
                             if let Some(inj) = injector.as_mut() {
                                 inj.up();
@@ -197,7 +213,7 @@ fn run_live(args: &Args, params: Params) -> Result<()> {
                     }
                 }
                 Err(RecvTimeoutError::Disconnected) => {
-                    eprintln!("audio stream ended; reconnecting...");
+                    eprintln!("\naudio stream ended; reconnecting...");
                     if det.held() {
                         if let Some(inj) = injector.as_mut() {
                             inj.up();
@@ -209,6 +225,40 @@ fn run_live(args: &Args, params: Params) -> Result<()> {
         }
         std::thread::sleep(Duration::from_secs(1));
     }
+}
+
+/// Print an event line; when the live meter is on, clear the meter line first
+/// so the log doesn't get clobbered by the in-place bar.
+fn log_event(meter: bool, msg: &str) {
+    if meter {
+        eprint!("\r\x1b[K");
+        eprintln!("{msg}");
+    } else {
+        println!("{msg}");
+    }
+}
+
+/// In-place input meter: level bar + live 2525/2475 magnitudes vs threshold.
+fn draw_meter(peak: f32, m_in: f32, m_out: f32, thr: f32, held: bool) {
+    let db = 20.0 * (peak + 1e-9).log10();
+    let filled = (((db + 60.0) / 60.0).clamp(0.0, 1.0) * 24.0) as usize;
+    let bar: String = (0..24)
+        .map(|i| if i < filled { '#' } else { ' ' })
+        .collect();
+    let hot = if m_in.max(m_out) > thr {
+        if m_in >= m_out {
+            "2525!"
+        } else {
+            "2475!"
+        }
+    } else {
+        "     "
+    };
+    let state = if held { "KEYED" } else { "     " };
+    eprint!(
+        "\r\x1b[Kin |{bar}| {db:>4.0}dB  2525={m_in:.4} 2475={m_out:.4} thr={thr:.3} {hot} {state}"
+    );
+    let _ = std::io::stderr().flush();
 }
 
 /// Validate the Claude keybinding without the TING: hold the key ~2s after a
