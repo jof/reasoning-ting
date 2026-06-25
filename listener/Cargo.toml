@@ -12,6 +12,7 @@ path = "src/main.rs"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 hound = "3"                     # WAV reading for offline (--wav) validation
+rustfft = "6"                   # FFT for the --spectrum frequency view
 cpal = "0.15"                   # cross-platform audio capture
 enigo = "0.2"                   # cross-platform key synthesis (X11/macOS/Windows)
 

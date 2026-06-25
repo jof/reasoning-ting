@@ -51,6 +51,9 @@ struct Args {
     /// (simulates one squeeze) so you can watch voice trigger. No audio/TING.
     #[arg(long)]
     test_key: bool,
+    /// Live spectrum / dominant-frequency view (diagnostic; interactive TTY).
+    #[arg(long)]
+    spectrum: bool,
 }
 
 fn main() -> Result<()> {
@@ -60,6 +63,9 @@ fn main() -> Result<()> {
     }
     if args.test_key {
         return run_test_key(&args);
+    }
+    if args.spectrum {
+        return run_spectrum(&args);
     }
     let params = Params {
         threshold: args.threshold,
@@ -280,6 +286,84 @@ fn run_test_key(args: &Args) -> Result<()> {
     inj.up();
     eprintln!("keyup {} — did Claude record then send?", args.key);
     Ok(())
+}
+
+/// Live spectrum + dominant-frequency view (diagnostic). Shows a 0–5 kHz bar,
+/// the peak frequency, and the exact 2525/2475 magnitudes so you can see where
+/// the tone actually lands and how strong it is.
+fn run_spectrum(args: &Args) -> Result<()> {
+    use rustfft::num_complex::Complex;
+    if !std::io::stderr().is_terminal() {
+        anyhow::bail!("--spectrum needs an interactive terminal");
+    }
+    let cap = audio::start(args.device.as_deref())?;
+    let sr = cap.sample_rate as f32;
+    let n = 4096usize;
+    let fft = rustfft::FftPlanner::new().plan_fft_forward(n);
+    let hann: Vec<f32> = (0..n)
+        .map(|i| 0.5 - 0.5 * (2.0 * std::f32::consts::PI * i as f32 / (n as f32 - 1.0)).cos())
+        .collect();
+    let bin_at = |hz: f32| ((hz * n as f32 / sr).round() as usize).min(n / 2 - 1);
+    let mut ring = vec![0f32; n];
+    let (mut pos, mut filled, mut ctr) = (0usize, 0usize, 0usize);
+    let interval = (sr / 15.0) as usize;
+    eprintln!("spectrum @ {sr} Hz — squeeze to see the tone; watch 2525/2475. Ctrl-C to quit.");
+    for block in cap.rx {
+        for &s in &block {
+            ring[pos] = s;
+            pos = (pos + 1) % n;
+            if filled < n {
+                filled += 1;
+            }
+            ctr += 1;
+            if ctr >= interval && filled == n {
+                ctr = 0;
+                let mut buf: Vec<Complex<f32>> = (0..n)
+                    .map(|k| Complex {
+                        re: ring[(pos + k) % n] * hann[k],
+                        im: 0.0,
+                    })
+                    .collect();
+                fft.process(&mut buf);
+                let half = n / 2;
+                let mag: Vec<f32> = buf[..half].iter().map(|c| c.norm() / n as f32).collect();
+                let (lo, hi) = (bin_at(50.0), bin_at(8000.0));
+                let (mut bi, mut bm) = (lo, 0f32);
+                for (i, &m) in mag.iter().enumerate().take(hi).skip(lo) {
+                    if m > bm {
+                        bm = m;
+                        bi = i;
+                    }
+                }
+                let peak_hz = bi as f32 * sr / n as f32;
+                let bar = spectrum_bar(&mag, sr, n, 56, 5000.0);
+                eprint!(
+                    "\r\x1b[K0|{bar}|5k peak={peak_hz:>5.0}Hz({bm:.3}) 2525={:.4} 2475={:.4}",
+                    mag[bin_at(2525.0)],
+                    mag[bin_at(2475.0)]
+                );
+                let _ = std::io::stderr().flush();
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Render a one-line spectrum bar over [0, fmax] Hz using block glyphs.
+fn spectrum_bar(mag: &[f32], sr: f32, n: usize, cols: usize, fmax: f32) -> String {
+    const BLOCKS: [char; 9] = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+    let mut out = String::with_capacity(cols);
+    for c in 0..cols {
+        let f0 = c as f32 / cols as f32 * fmax;
+        let f1 = (c + 1) as f32 / cols as f32 * fmax;
+        let b0 = ((f0 * n as f32 / sr) as usize).min(n / 2 - 1);
+        let b1 = ((f1 * n as f32 / sr) as usize).max(b0 + 1).min(n / 2);
+        let m = mag[b0..b1].iter().cloned().fold(0f32, f32::max);
+        let db = 20.0 * (m + 1e-9).log10();
+        let lvl = (((db + 60.0) / 60.0).clamp(0.0, 1.0) * 8.0) as usize;
+        out.push(BLOCKS[lvl.min(8)]);
+    }
+    out
 }
 
 fn label(ev: Event) -> &'static str {
