@@ -12,6 +12,8 @@ mod inject;
 use anyhow::Result;
 use clap::Parser;
 use detect::{Detector, Event, Params};
+use std::sync::mpsc::RecvTimeoutError;
+use std::time::Duration;
 
 #[derive(Parser, Debug)]
 #[command(about = "Detect TING Quindar tones -> Claude voice push-to-talk")]
@@ -43,12 +45,19 @@ struct Args {
     /// Detect only; print events, send no keystrokes.
     #[arg(long)]
     dry_run: bool,
+    /// Validate the Claude keybinding: after a countdown, hold the key ~2s
+    /// (simulates one squeeze) so you can watch voice trigger. No audio/TING.
+    #[arg(long)]
+    test_key: bool,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
     if args.list_devices {
         return audio::list_devices();
+    }
+    if args.test_key {
+        return run_test_key(&args);
     }
     let params = Params {
         threshold: args.threshold,
@@ -104,61 +113,121 @@ fn run_wav(path: &str, params: &Params) -> Result<()> {
 
 fn run_live(args: &Args, params: Params) -> Result<()> {
     let key = inject::parse_key(&args.key)?;
-    let cap = audio::start(args.device.as_deref())?;
-    let sr = cap.sample_rate as f32;
-    let mut det = Detector::new(sr, &params);
     let guard = focus::make(args.no_focus_guard, args.focus_proc.clone());
     let mut injector = if args.dry_run {
         None
     } else {
         Some(inject::Injector::new(key)?)
     };
-    let max_hold_samples = (args.max_hold * sr) as u64;
 
-    eprintln!(
-        "listening @ {sr} Hz  key={}  focus_guard={}  dry_run={}",
-        args.key, !args.no_focus_guard, args.dry_run
-    );
-
-    let mut held_samples: u64 = 0;
-    for block in cap.rx {
-        for &s in &block {
-            if det.held() {
-                held_samples += 1;
-                if held_samples >= max_hold_samples {
-                    if let Some(inj) = injector.as_mut() {
-                        inj.up();
-                    }
-                    det.set_held(false);
-                    held_samples = 0;
-                    println!("(safety key-up after {:.0}s held)", args.max_hold);
-                }
+    // Reconnect loop: a live mic streams continuously (even silence), so a
+    // sustained read timeout means the device died -> rebuild the stream.
+    loop {
+        let cap = match audio::start(args.device.as_deref()) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("audio start failed: {e}; retrying in 2s");
+                std::thread::sleep(Duration::from_secs(2));
+                continue;
             }
-            if let Some(ev) = det.push(s) {
-                match ev {
-                    Event::Intro => {
-                        if !guard.allowed() {
-                            // not focused on Claude: undo the held state, do nothing
-                            det.set_held(false);
-                            println!("INTRO  (ignored: target window not focused)");
-                            continue;
+        };
+        let sr = cap.sample_rate as f32;
+        let mut det = Detector::new(sr, &params);
+        let max_hold_samples = (args.max_hold * sr) as u64;
+        let mut held_samples: u64 = 0;
+        let mut stalls = 0;
+        eprintln!(
+            "listening @ {sr} Hz  key={}  focus_guard={}  dry_run={}",
+            args.key,
+            !args.no_focus_guard,
+            args.dry_run
+        );
+
+        loop {
+            match cap.rx.recv_timeout(Duration::from_secs(3)) {
+                Ok(block) => {
+                    stalls = 0;
+                    for &s in &block {
+                        if det.held() {
+                            held_samples += 1;
+                            if held_samples >= max_hold_samples {
+                                if let Some(inj) = injector.as_mut() {
+                                    inj.up();
+                                }
+                                det.set_held(false);
+                                held_samples = 0;
+                                println!("(safety key-up after {:.0}s held)", args.max_hold);
+                            }
                         }
-                        held_samples = 0;
-                        if let Some(inj) = injector.as_mut() {
-                            inj.down();
+                        if let Some(ev) = det.push(s) {
+                            match ev {
+                                Event::Intro => {
+                                    if !guard.allowed() {
+                                        det.set_held(false);
+                                        println!("INTRO  (ignored: target window not focused)");
+                                        continue;
+                                    }
+                                    held_samples = 0;
+                                    if let Some(inj) = injector.as_mut() {
+                                        inj.down();
+                                    }
+                                    println!("INTRO/2525 -> START (keydown {})", args.key);
+                                }
+                                Event::Outro => {
+                                    if let Some(inj) = injector.as_mut() {
+                                        inj.up();
+                                    }
+                                    println!("OUTRO/2475 -> SEND  (keyup {})", args.key);
+                                }
+                            }
                         }
-                        println!("INTRO/2525 -> START (keydown {})", args.key);
                     }
-                    Event::Outro => {
+                }
+                Err(RecvTimeoutError::Timeout) => {
+                    stalls += 1;
+                    if stalls >= 3 {
+                        eprintln!("audio stalled (~9s no input); reconnecting...");
+                        if det.held() {
+                            if let Some(inj) = injector.as_mut() {
+                                inj.up();
+                            }
+                        }
+                        break;
+                    }
+                }
+                Err(RecvTimeoutError::Disconnected) => {
+                    eprintln!("audio stream ended; reconnecting...");
+                    if det.held() {
                         if let Some(inj) = injector.as_mut() {
                             inj.up();
                         }
-                        println!("OUTRO/2475 -> SEND  (keyup {})", args.key);
                     }
+                    break;
                 }
             }
         }
+        std::thread::sleep(Duration::from_secs(1));
     }
+}
+
+/// Validate the Claude keybinding without the TING: hold the key ~2s after a
+/// countdown so you can watch voice record + send in a focused Claude window.
+fn run_test_key(args: &Args) -> Result<()> {
+    let key = inject::parse_key(&args.key)?;
+    let mut inj = inject::Injector::new(key)?;
+    eprintln!(
+        "TEST: focus your Claude window. Holding '{}' for 2s in:",
+        args.key
+    );
+    for n in (1..=5).rev() {
+        eprintln!("  {n}...");
+        std::thread::sleep(Duration::from_secs(1));
+    }
+    eprintln!("keydown {}", args.key);
+    inj.down();
+    std::thread::sleep(Duration::from_secs(2));
+    inj.up();
+    eprintln!("keyup {} — did Claude record then send?", args.key);
     Ok(())
 }
 

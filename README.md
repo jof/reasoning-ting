@@ -90,3 +90,12 @@ patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
    sends). Needs a Claude.ai account (voice dictation isn't available on API keys).
 
 Prereqs installed: `xdotool`, venv has numpy/scipy/pyusb/mcp; `parec` for capture.
+
+## Daemon implementations
+- `listener/` — **Rust, cross-platform, production path.** Single self-contained
+  binary (cpal audio, enigo injection, native x11rb focus on Linux). Detector
+  unit-tested and validated against a real capture. See `listener/README.md`.
+  Build: `cargo build --release` (Linux needs `libxdo-dev`). Validate the Claude
+  keybinding without the TING: `some-ting-listen --test-key`.
+- `host/ptt_daemon.py` — original Linux/Python prototype (proved the pipeline).
+- `packaging/` — systemd user service (Linux) + launchd LaunchAgent (macOS).
