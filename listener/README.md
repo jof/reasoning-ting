@@ -33,7 +33,7 @@ macOS/Windows need no extra system libs.
 ## Run
 ```
 some-ting-listen --list-devices
-some-ting-listen --wav ../analysis/ptt.wav          # offline detector check
+some-ting-listen --wav capture.wav                   # offline detector check (any recording)
 some-ting-listen --dry-run --no-focus-guard          # live detect, no keystrokes
 some-ting-listen                                     # live: key=f12, focus-guarded
 ```

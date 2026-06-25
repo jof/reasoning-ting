@@ -52,18 +52,17 @@ echo -n <PCI_ADDR> | sudo tee /sys/bus/pci/drivers/xhci_hcd/bind
 All ports tried so far land on Bus 005 or Bus 003 (both shared with critical
 devices). A truly isolated controller, or offline flashing, avoids the risk.
 
-## Tooling
-- `host/tingrepl.py` — **safe** libusb (pyusb) bridge to the MicroPython REPL.
-  Talks only to CDC bulk endpoints (0x02/0x82); never opens /dev/ttyACM, never
-  sends modem-control. `exec '<code>'`, `execfile <path>`, `reset`. Env
-  `TIMEOUT=<s>`, `REBOOT=1` (soft-reboot after — AVOID on shared buses).
-- `host/portcheck.sh` — which USB controller the TING is on vs. BT/audio.
-- `host/99-ting.rules` — udev rule: plugdev access + ModemManager ignore
-  (installed to /etc/udev/rules.d/).
-- `device-probes/` — MicroPython snippets run via tingrepl.
-- `firmware/` — stock UF2, release notes, `uf2_strings.txt` (extracted strings
-  incl. the frozen `main.py` source and embedded config.json docs).
-- `analysis/` — acoustic click study (rejected approach).
+## Repo layout
+- `deploy/` — **TING-side**: `main.py` (runs on the device) + `quindar_gen.py`
+  (generates the tone WAVs). These files go on TINGDISK.
+- `listener/` — **the product**: Rust daemon that detects the tones and drives
+  Claude voice. See `listener/README.md`.
+- `packaging/` — systemd user service (Linux) + launchd LaunchAgent (macOS).
+- `firmware/` — stock TE UF2, release notes, `uf2_strings.txt` (RE reference /
+  recovery image).
+- `docs/` — how it works + the reverse-engineering writeup.
+- `dev/` — dev/RE/tuning utilities (REPL bridge `tingrepl.py`, USB `portcheck.sh`,
+  `99-ting.rules`, capture analyzer `characterize.py`, `uf2_to_bin.py`).
 
 ## Approach taken (resolved)
 A from-scratch UF2 is infeasible (TE's `ui`/`spl`/`fx` are closed). But Ghidra RE
@@ -86,7 +85,7 @@ patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
 3. **Audio:** the TING (front-mic input) must be the system **default input**
    (it is) so both Claude's dictation and the daemon hear it.
 4. **Daemon** (separate terminal, keeps running):
-   `./venv/bin/python host/ptt_daemon.py`
+   `listener/target/release/some-ting-listen`
    - `--dry-run` to watch detections without keystrokes
    - `--no-focus-guard` to inject regardless of focus
    - focus guard only injects when a window with `claude` in its process tree is focused
@@ -98,11 +97,9 @@ patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
 
 Prereqs installed: `xdotool`, venv has numpy/scipy/pyusb/mcp; `parec` for capture.
 
-## Daemon implementations
-- `listener/` — **Rust, cross-platform, production path.** Single self-contained
-  binary (cpal audio, enigo injection, native x11rb focus on Linux). Detector
-  unit-tested and validated against a real capture. See `listener/README.md`.
-  Build: `cargo build --release` (Linux needs `libxdo-dev`). Validate the Claude
-  keybinding without the TING: `some-ting-listen --test-key`.
-- `host/ptt_daemon.py` — original Linux/Python prototype (proved the pipeline).
-- `packaging/` — systemd user service (Linux) + launchd LaunchAgent (macOS).
+## Daemon (listener/)
+Rust, cross-platform, single self-contained binary (cpal audio, enigo injection,
+native x11rb focus on Linux). Detector unit-tested + validated against a real
+capture. Build: `cargo build --release` (Linux needs `libxdo-dev`). Validate the
+Claude keybinding without the TING: `some-ting-listen --test-key`. The original
+Python prototype proved the pipeline and has been retired in favor of this.

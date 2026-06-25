@@ -1,22 +1,18 @@
 venv/
 __pycache__/
 *.pyc
-# large binary capture; regenerate via analysis/capture.sh if needed
-analysis/capture.wav
-
-# derived from the UF2 via scripts/uf2_to_bin.py
-firmware/*.bin
-
-# Ghidra project files
-some-ting.gpr
-some-ting.lock*
-some-ting.rep/
-*.gpr
-*.rep/
-
-deploy/*.wav
-
-analysis/*.wav
 
 # Rust build output
 /listener/target/
+
+# generated tone WAVs (regenerate: python deploy/quindar_gen.py)
+deploy/*.wav
+
+# extracted flash image (regenerate: python dev/uf2_to_bin.py)
+*.bin
+
+# Ghidra project files (RE, not part of the product)
+*.gpr
+*.lock
+*.lock~
+*.rep/
