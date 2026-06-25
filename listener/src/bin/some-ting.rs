@@ -5,10 +5,12 @@
 //!
 //! Run with `--dry-run` to detect + show status WITHOUT sending keystrokes.
 //!
-//! Menu: status · Pause/Resume · Input device · Sensitivity · Write Claude
-//! keybinding · Quit. TODO: Setup wizard, persisted prefs, launch-at-login.
+//! Menu: status · Pause/Resume · Input device · Sensitivity · Focus guard ·
+//! Write Claude keybinding · Quit. Device/sensitivity/focus-guard choices are
+//! persisted (see `some_ting::prefs`). TODO: Setup wizard, launch-at-login.
 
 use some_ting::icon::{self, IconState};
+use some_ting::prefs::Prefs;
 use some_ting::{audio, Config, Params, Status};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
@@ -53,17 +55,30 @@ fn set_state(tray: &Option<TrayIcon>, cur: &mut IconState, want: IconState) {
     }
 }
 
-fn base_config(dry_run: bool, focus_guard: bool) -> Config {
+fn base_config(dry_run: bool, prefs: &Prefs) -> Config {
     Config {
-        device: None,
+        device: prefs.device.clone(),
         key: "f12".into(),
         submit_key: "enter".into(),
-        params: Params::default(),
+        params: Params {
+            threshold: prefs.threshold,
+            ..Params::default()
+        },
         max_hold_secs: 600.0,
-        focus_guard,
+        focus_guard: prefs.focus_guard,
         focus_proc: "claude".into(),
         dry_run,
     }
+}
+
+/// Snapshot the live config back into persisted prefs.
+fn save_prefs(cfg: &Config) {
+    Prefs {
+        device: cfg.device.clone(),
+        threshold: cfg.params.threshold,
+        focus_guard: cfg.focus_guard,
+    }
+    .save();
 }
 
 fn spawn_engine(cfg: &Config, tx: mpsc::Sender<Status>) -> Arc<AtomicBool> {
@@ -115,8 +130,14 @@ fn main() {
     let dry_run = std::env::args().any(|a| a == "--dry-run");
     let no_focus_guard = std::env::args().any(|a| a == "--no-focus-guard");
 
+    // Persisted prefs are the baseline; --no-focus-guard still forces it off.
+    let mut prefs = Prefs::load();
+    if no_focus_guard {
+        prefs.focus_guard = false;
+    }
+
     let (tx, rx) = mpsc::channel::<Status>();
-    let mut cfg = base_config(dry_run, !no_focus_guard);
+    let mut cfg = base_config(dry_run, &prefs);
     let mut engine: Option<Arc<AtomicBool>> = Some(spawn_engine(&cfg, tx.clone()));
     let mut paused = false;
 
@@ -249,6 +270,7 @@ fn main() {
                 cfg.focus_guard = !cfg.focus_guard;
                 focus_guard.set_checked(cfg.focus_guard);
                 restart(&mut engine, &cfg, &tx, paused);
+                save_prefs(&cfg);
             } else if id == keybind.id() {
                 status.set_text(write_keybinding());
             } else {
@@ -260,6 +282,7 @@ fn main() {
                         }
                         it.set_checked(true);
                         restart(&mut engine, &cfg, &tx, paused);
+                        save_prefs(&cfg);
                     }
                 }
                 for (it, thr) in &sens_items {
@@ -270,6 +293,7 @@ fn main() {
                         }
                         it.set_checked(true);
                         restart(&mut engine, &cfg, &tx, paused);
+                        save_prefs(&cfg);
                     }
                 }
             }
