@@ -54,6 +54,19 @@ struct Args {
     /// Live spectrum / dominant-frequency view (diagnostic; interactive TTY).
     #[arg(long)]
     spectrum: bool,
+    /// Record live audio to a WAV (via the daemon's own capture pipeline) for
+    /// offline analysis / tuning. Squeeze a few times while it records.
+    #[arg(long, value_name = "PATH")]
+    record: Option<String>,
+    /// Seconds to record with --record.
+    #[arg(long, default_value_t = 20.0)]
+    seconds: f32,
+    /// Intro (press) tone frequency, Hz.
+    #[arg(long, default_value_t = 2525.0)]
+    f_intro: f32,
+    /// Outro (release) tone frequency, Hz.
+    #[arg(long, default_value_t = 2475.0)]
+    f_outro: f32,
 }
 
 fn main() -> Result<()> {
@@ -67,8 +80,13 @@ fn main() -> Result<()> {
     if args.spectrum {
         return run_spectrum(&args);
     }
+    if let Some(path) = args.record.clone() {
+        return run_record(&args, &path, args.seconds);
+    }
     let params = Params {
         threshold: args.threshold,
+        f_intro: args.f_intro,
+        f_outro: args.f_outro,
         ..Default::default()
     };
     match &args.wav {
@@ -346,6 +364,40 @@ fn run_spectrum(args: &Args) -> Result<()> {
             }
         }
     }
+    Ok(())
+}
+
+/// Record live audio (the daemon's own cpal pipeline) to a 16-bit mono WAV,
+/// so analysis sees exactly what the detector sees.
+fn run_record(args: &Args, path: &str, secs: f32) -> Result<()> {
+    let cap = audio::start(args.device.as_deref())?;
+    let sr = cap.sample_rate;
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: sr,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut w = hound::WavWriter::create(path, spec)?;
+    let total = (secs * sr as f32) as u64;
+    let tty = std::io::stderr().is_terminal();
+    eprintln!("recording {secs:.0}s to {path} @ {sr} Hz — squeeze 3-4 times (engage, say a word, release)...");
+    let mut n = 0u64;
+    'outer: for block in cap.rx {
+        for &s in &block {
+            w.write_sample((s.clamp(-1.0, 1.0) * 32767.0) as i16)?;
+            n += 1;
+            if n >= total {
+                break 'outer;
+            }
+        }
+        if tty {
+            eprint!("\r{:>4.1}s / {secs:.0}s", n as f32 / sr as f32);
+            let _ = std::io::stderr().flush();
+        }
+    }
+    w.finalize()?;
+    eprintln!("\nsaved {path}");
     Ok(())
 }
 
