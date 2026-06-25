@@ -57,6 +57,12 @@
             pname = "some-ting";
             buildFeatures = [ "gui" ];
             cargoBuildFlags = [ "--bin" "some-ting" ];
+            # libappindicator-sys dlopen()s libayatana-appindicator3.so.1 by
+            # bare soname, so RPATH doesn't find it — inject it on LD_LIBRARY_PATH
+            # via the gApps wrapper.
+            preFixup = lib.optionalString stdenv.isLinux ''
+              gappsWrapperArgs+=(--prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ pkgs.libayatana-appindicator ]}")
+            '';
           });
           default = self.packages.${system}.gui;
         };

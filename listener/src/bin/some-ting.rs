@@ -29,25 +29,38 @@ fn make_icon(state: IconState) -> Icon {
     Icon::from_rgba(icon::rgba(state), icon::SIZE, icon::SIZE).expect("icon")
 }
 
+fn state_label(state: IconState) -> &'static str {
+    match state {
+        IconState::Idle => "idle",
+        IconState::Listening => "listening",
+        IconState::Keyed => "KEYED (voice held)",
+        IconState::Paused => "paused",
+    }
+}
+
 /// Set the tray icon only when the state actually changes (avoid churn — the
-/// engine emits Level ~15×/s).
+/// engine emits Level ~15×/s). Updates both the icon pixmap and the tooltip:
+/// some XEmbed bridges (snixembed → i3bar) are slow to redraw a changed pixmap,
+/// so the tooltip gives a second, reliable feedback channel.
 fn set_state(tray: &Option<TrayIcon>, cur: &mut IconState, want: IconState) {
     if *cur != want {
         *cur = want;
+        eprintln!("[state] {}", state_label(want));
         if let Some(t) = tray {
             let _ = t.set_icon(Some(make_icon(want)));
+            let _ = t.set_tooltip(Some(format!("some-ting — {}", state_label(want))));
         }
     }
 }
 
-fn base_config(dry_run: bool) -> Config {
+fn base_config(dry_run: bool, focus_guard: bool) -> Config {
     Config {
         device: None,
         key: "f12".into(),
         submit_key: "enter".into(),
         params: Params::default(),
         max_hold_secs: 600.0,
-        focus_guard: true,
+        focus_guard,
         focus_proc: "claude".into(),
         dry_run,
     }
@@ -100,9 +113,10 @@ fn write_keybinding() -> String {
 
 fn main() {
     let dry_run = std::env::args().any(|a| a == "--dry-run");
+    let no_focus_guard = std::env::args().any(|a| a == "--no-focus-guard");
 
     let (tx, rx) = mpsc::channel::<Status>();
-    let mut cfg = base_config(dry_run);
+    let mut cfg = base_config(dry_run, !no_focus_guard);
     let mut engine: Option<Arc<AtomicBool>> = Some(spawn_engine(&cfg, tx.clone()));
     let mut paused = false;
 
@@ -133,6 +147,14 @@ fn main() {
         sens_items.push((it, thr));
     }
 
+    // Focus guard: when on, only inject while a Claude window is focused.
+    let focus_guard = CheckMenuItem::new(
+        "Focus guard (Claude windows only)",
+        true,
+        cfg.focus_guard,
+        None,
+    );
+
     let keybind = MenuItem::new("Write Claude keybinding (f12)", true, None);
     let quit = MenuItem::new("Quit some-ting", true, None);
 
@@ -141,6 +163,7 @@ fn main() {
     menu.append(&pause).unwrap();
     menu.append(&dev_menu).unwrap();
     menu.append(&sens_menu).unwrap();
+    menu.append(&focus_guard).unwrap();
     menu.append(&PredefinedMenuItem::separator()).unwrap();
     menu.append(&keybind).unwrap();
     menu.append(&PredefinedMenuItem::separator()).unwrap();
@@ -178,10 +201,15 @@ fn main() {
                     set_state(&tray, &mut icon_state, IconState::Idle);
                 }
                 Status::Event { event, acted } => {
-                    let _ = status.set_text(format!(
-                        "{event:?}{}",
-                        if acted { "" } else { " (ignored)" }
-                    ));
+                    // acted=false means the focus guard suppressed it — say so,
+                    // since "nothing happened" is exactly the confusing case.
+                    let note = if acted {
+                        "→ sent"
+                    } else {
+                        "→ ignored (focus guard: no Claude window focused)"
+                    };
+                    eprintln!("[event] {event:?} {note}");
+                    let _ = status.set_text(format!("{event:?} {note}"));
                 }
                 Status::Level { held, .. } => {
                     set_state(
@@ -191,6 +219,7 @@ fn main() {
                     );
                 }
                 Status::Error(e) => {
+                    eprintln!("[error] {e}");
                     let _ = status.set_text(format!("error: {e}"));
                     set_state(&tray, &mut icon_state, IconState::Idle);
                 }
@@ -216,6 +245,10 @@ fn main() {
                 } else {
                     engine = Some(spawn_engine(&cfg, tx.clone()));
                 }
+            } else if &id == focus_guard.id() {
+                cfg.focus_guard = !cfg.focus_guard;
+                focus_guard.set_checked(cfg.focus_guard);
+                restart(&mut engine, &cfg, &tx, paused);
             } else if &id == keybind.id() {
                 let _ = status.set_text(write_keybinding());
             } else {
