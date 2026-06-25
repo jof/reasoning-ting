@@ -193,11 +193,11 @@ fn main() {
         while let Ok(st) = rx.try_recv() {
             match st {
                 Status::Listening { sample_rate } => {
-                    let _ = status.set_text(format!("● listening @ {sample_rate} Hz"));
+                    status.set_text(format!("● listening @ {sample_rate} Hz"));
                     set_state(&tray, &mut icon_state, IconState::Listening);
                 }
                 Status::Reconnecting => {
-                    let _ = status.set_text("… reconnecting");
+                    status.set_text("… reconnecting");
                     set_state(&tray, &mut icon_state, IconState::Idle);
                 }
                 Status::Event { event, acted } => {
@@ -209,7 +209,7 @@ fn main() {
                         "→ ignored (focus guard: no Claude window focused)"
                     };
                     eprintln!("[event] {event:?} {note}");
-                    let _ = status.set_text(format!("{event:?} {note}"));
+                    status.set_text(format!("{event:?} {note}"));
                 }
                 Status::Level { held, .. } => {
                     set_state(
@@ -220,7 +220,7 @@ fn main() {
                 }
                 Status::Error(e) => {
                     eprintln!("[error] {e}");
-                    let _ = status.set_text(format!("error: {e}"));
+                    status.set_text(format!("error: {e}"));
                     set_state(&tray, &mut icon_state, IconState::Idle);
                 }
             }
@@ -228,32 +228,32 @@ fn main() {
 
         if let Ok(ev) = menu_events.try_recv() {
             let id = ev.id;
-            if &id == quit.id() {
+            if id == quit.id() {
                 if let Some(s) = &engine {
                     s.store(true, Ordering::Relaxed);
                 }
                 *control_flow = ControlFlow::Exit;
-            } else if &id == pause.id() {
+            } else if id == pause.id() {
                 paused = !paused;
-                let _ = pause.set_text(if paused { "Resume" } else { "Pause" });
+                pause.set_text(if paused { "Resume" } else { "Pause" });
                 if paused {
                     if let Some(s) = engine.take() {
                         s.store(true, Ordering::Relaxed);
                     }
-                    let _ = status.set_text("paused");
+                    status.set_text("paused");
                     set_state(&tray, &mut icon_state, IconState::Paused);
                 } else {
                     engine = Some(spawn_engine(&cfg, tx.clone()));
                 }
-            } else if &id == focus_guard.id() {
+            } else if id == focus_guard.id() {
                 cfg.focus_guard = !cfg.focus_guard;
                 focus_guard.set_checked(cfg.focus_guard);
                 restart(&mut engine, &cfg, &tx, paused);
-            } else if &id == keybind.id() {
-                let _ = status.set_text(write_keybinding());
+            } else if id == keybind.id() {
+                status.set_text(write_keybinding());
             } else {
                 for (it, dev) in &dev_items {
-                    if &id == it.id() {
+                    if id == it.id() {
                         cfg.device = dev.clone();
                         for (o, _) in &dev_items {
                             o.set_checked(false);
@@ -263,7 +263,7 @@ fn main() {
                     }
                 }
                 for (it, thr) in &sens_items {
-                    if &id == it.id() {
+                    if id == it.id() {
                         cfg.params.threshold = *thr;
                         for (o, _) in &sens_items {
                             o.set_checked(false);

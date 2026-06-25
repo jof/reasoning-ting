@@ -70,6 +70,23 @@ pub fn rgba(state: IconState) -> Vec<u8> {
     buf
 }
 
+/// Alpha of the center pixel for `state` (0..=255).
+#[cfg(test)]
+fn center_alpha(state: IconState) -> u8 {
+    let n = SIZE as i32;
+    let c = (n - 1) / 2;
+    let buf = rgba(state);
+    buf[(((c * n + c) * 4) + 3) as usize]
+}
+
+#[cfg(test)]
+fn opaque_count(state: IconState) -> usize {
+    rgba(state)
+        .chunks_exact(4)
+        .filter(|px| px[3] > 200)
+        .count()
+}
+
 /// Write each state's RGBA to `<dir>/<state>.rgba` (raw, SIZE×SIZE×4) for preview.
 pub fn dump_rgba(dir: &str) -> std::io::Result<()> {
     for (name, st) in [
@@ -81,4 +98,57 @@ pub fn dump_rgba(dir: &str) -> std::io::Result<()> {
         std::fs::write(format!("{dir}/{name}.rgba"), rgba(st))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ALL: [IconState; 4] = [
+        IconState::Idle,
+        IconState::Listening,
+        IconState::Keyed,
+        IconState::Paused,
+    ];
+
+    #[test]
+    fn buffer_is_correct_size_and_colored() {
+        for s in ALL {
+            let buf = rgba(s);
+            assert_eq!(buf.len(), (SIZE * SIZE * 4) as usize, "{s:?} wrong size");
+            let (cr, cg, cb) = color(s);
+            // Every visible pixel carries the state's color (straight alpha).
+            for px in buf.chunks_exact(4).filter(|px| px[3] > 0) {
+                assert_eq!((px[0], px[1], px[2]), (cr, cg, cb), "{s:?} stray color");
+            }
+            // Something is actually drawn.
+            assert!(opaque_count(s) > 0, "{s:?} drew nothing");
+        }
+    }
+
+    #[test]
+    fn center_distinguishes_states() {
+        // Listening (center dot) and Keyed (filled disc) are solid in the
+        // middle; Idle is a hollow ring (transparent center).
+        assert!(center_alpha(IconState::Listening) > 200, "listening dot missing");
+        assert!(center_alpha(IconState::Keyed) > 200, "keyed disc missing");
+        assert!(center_alpha(IconState::Idle) < 50, "idle should be hollow");
+    }
+
+    #[test]
+    fn keyed_disc_is_more_filled_than_listening_ring() {
+        assert!(
+            opaque_count(IconState::Keyed) > opaque_count(IconState::Listening),
+            "filled disc should have more opaque pixels than a ring + dot"
+        );
+    }
+
+    #[test]
+    fn every_state_renders_to_a_valid_icon_buffer() {
+        // Guards the GUI's Icon::from_rgba(...).expect("icon") call: the buffer
+        // must be exactly SIZE*SIZE*4 for tray-icon to accept it.
+        for s in ALL {
+            assert_eq!(rgba(s).len(), (SIZE as usize).pow(2) * 4);
+        }
+    }
 }
