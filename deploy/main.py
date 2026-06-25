@@ -25,9 +25,9 @@ except Exception:
 
 _stock_cb = teenage.python_callback
 
-# Outer handle switch is active-low: engaged == ui.sw(SW) == 0.  Use the ABSOLUTE
-# polarity (not a boot-time baseline) so it can't invert if the handle happens to
-# be squeezed while the unit powers on.
+# Outer handle switch: engaged == ui.sw(SW) == 1, released == 0 (measured).
+# Use the ABSOLUTE state (not a boot-time baseline) so it can't invert if the
+# handle happens to be squeezed while the unit powers on.
 SW = 4
 _pressed = False
 
@@ -43,7 +43,7 @@ def cb(message):
         return                            # swallow white-button release
     _stock_cb(message)                    # preserve all other stock behavior
     try:
-        on = (ui.sw(SW) == 0)             # engaged (active-low), absolute
+        on = (ui.sw(SW) == 1)             # engaged == 1 (released == 0), absolute
     except Exception:
         return
     if on and not _pressed:
