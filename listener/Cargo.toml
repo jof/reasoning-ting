@@ -9,8 +9,16 @@ name = "some_ting"
 path = "src/lib.rs"
 
 [[bin]]
-name = "some-ting-listen"
+name = "some-ting-listen"       # CLI
 path = "src/main.rs"
+
+[[bin]]
+name = "some-ting"             # menu-bar GUI (build with --features gui)
+path = "src/bin/some-ting.rs"
+required-features = ["gui"]
+
+[features]
+gui = ["dep:tray-icon", "dep:tao"]
 
 [dependencies]
 anyhow = "1"
@@ -19,6 +27,9 @@ hound = "3"                     # WAV reading for offline (--wav) validation
 rustfft = "6"                   # FFT for the --spectrum frequency view
 cpal = "0.15"                   # cross-platform audio capture
 enigo = "0.2"                   # cross-platform key synthesis (X11/macOS/Windows)
+# GUI (menu-bar tray) — cross-platform; macOS NSStatusItem / Linux AppIndicator
+tray-icon = { version = "0.19", optional = true }
+tao = { version = "0.30", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = "0.13"                  # native X11 focus detection (no shelling out)

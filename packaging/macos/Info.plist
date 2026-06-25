@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>some-ting</string>
+    <key>CFBundleDisplayName</key>
+    <string>some-ting</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.thejof.some-ting</string>
+    <key>CFBundleExecutable</key>
+    <string>some-ting</string>
+    <key>CFBundleVersion</key>
+    <string>0.1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <!-- Menu-bar only: no Dock icon, no main window. -->
+    <key>LSUIElement</key>
+    <true/>
+    <!-- Shown when macOS prompts for microphone access (capturing the TING). -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>some-ting listens to the TING's tones on your audio input to drive Claude voice.</string>
+</dict>
+</plist>

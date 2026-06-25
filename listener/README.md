@@ -66,3 +66,20 @@ Flags: `--device <substr>`, `--key <f12|space|…>` (must match
 | macOS | ✅ | ✅ CGEvent | ✅ osascript allowlist |
 | Windows | ✅ | ✅ SendInput | ⏳ stub (allows) |
 | Linux/Wayland | ✅ | ⚠️ enigo libei/uinput TBD | ⏳ |
+
+## GUI (menu-bar) — `some-ting`
+Cross-platform tray app on the same core engine (`some_ting::run`). Build:
+```
+cargo build --release --features gui --bin some-ting
+```
+Shows a status-tray icon (grey idle / green listening / red keyed) + a live
+status line + Quit. Linux needs `libgtk-3-dev` + `libayatana-appindicator3-dev`;
+macOS/Windows need no extra system libs.
+
+**macOS app bundle:** `packaging/macos/bundle.sh` builds + bundles (`.app`,
+`LSUIElement`, mic usage string) and — with `SIGN_ID`/`NOTARY_PROFILE` set —
+code-signs (hardened runtime), notarizes, and produces a DMG.
+
+Roadmap: device picker · sensitivity (threshold) · pause/resume · "Setup…"
+(request Accessibility/Mic, write the Claude keybinding, deploy firmware to
+TINGDISK) · launch-at-login.
