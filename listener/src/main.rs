@@ -28,7 +28,8 @@ struct Args {
     #[arg(long)]
     list_devices: bool,
     /// Key bound to Claude's /voice (must match ~/.claude/keybindings.json).
-    #[arg(long, default_value = "f13")]
+    /// F12 — F13+ aren't physical keys most terminals transmit.
+    #[arg(long, default_value = "f12")]
     key: String,
     /// Detection magnitude threshold.
     #[arg(long, default_value_t = 0.008)]

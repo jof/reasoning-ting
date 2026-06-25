@@ -35,9 +35,9 @@ macOS/Windows need no extra system libs.
 some-ting-listen --list-devices
 some-ting-listen --wav ../analysis/ptt.wav          # offline detector check
 some-ting-listen --dry-run --no-focus-guard          # live detect, no keystrokes
-some-ting-listen                                     # live: key=f13, focus-guarded
+some-ting-listen                                     # live: key=f12, focus-guarded
 ```
-Flags: `--device <substr>`, `--key <f13|space|…>` (must match
+Flags: `--device <substr>`, `--key <f12|space|…>` (must match
 `~/.claude/keybindings.json`), `--threshold`, `--max-hold <s>` (safety release),
 `--focus-proc <name>` (Linux subtree match, default `claude`), `--dry-run`,
 `--no-focus-guard`.
@@ -47,7 +47,7 @@ Flags: `--device <substr>`, `--key <f13|space|…>` (must match
 - ✅ detector vs real capture (`--wav ../analysis/ptt.wav` → 6 alternating events,
   matches the Python analysis)
 - ✅ live cpal capture starts cleanly
-- ⏳ keystroke → Claude voice trigger (validate with the user; the F13 keysym
+- ⏳ keystroke → Claude voice trigger (validate with the user; the F12 keysym
   must reach Claude and `voice:pushToTalk` must be bound + voice enabled)
 - ⏳ macOS path (focus allowlist, Accessibility permission, audio-in hardware)
 

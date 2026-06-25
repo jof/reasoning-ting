@@ -23,7 +23,7 @@ Emit **Quindar-style tones** from firmware on handle press/release:
 - release (falls below) → 2475 Hz burst ("stop")
 Two distinct narrowband tones = unambiguous press AND release, immune to long
 speech pauses. PC daemon Goertzel-detects them and synthesizes a keypress
-(e.g. F13, bound to `/voice`) into the focused terminal.
+(e.g. F12, bound to `/voice`) into the focused terminal.
 
 Detection of the click acoustically was rejected: the rocker is acoustically
 asymmetric (one edge ~-8 dB, the other near noise floor — see `analysis/`).
@@ -76,7 +76,7 @@ patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
 ## Running it (live)
 1. **Device:** `main.py` + `quindar_in.wav` + `quindar_out.wav` on TINGDISK
    (deploy from `deploy/`). Use the **clean** preset + moderate volume.
-2. **Keybinding:** `~/.claude/keybindings.json` binds `f13` -> `voice:pushToTalk`
+2. **Keybinding:** `~/.claude/keybindings.json` binds `f12` -> `voice:pushToTalk`
    (Chat). **Restart Claude Code** so it loads the binding.
 3. **Audio:** the TING (front-mic input) must be the system **default input**
    (it is) so both Claude's dictation and the daemon hear it.
@@ -86,7 +86,7 @@ patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
    - `--no-focus-guard` to inject regardless of focus
    - focus guard only injects when a window with `claude` in its process tree is focused
 5. **Use:** focus the Claude Code window, **squeeze** the TING handle (intro tone
-   -> F13 down -> dictation records), talk, **release** (outro tone -> F13 up ->
+   -> F12 down -> dictation records), talk, **release** (outro tone -> F12 up ->
    sends). Needs a Claude.ai account (voice dictation isn't available on API keys).
 
 Prereqs installed: `xdotool`, venv has numpy/scipy/pyusb/mcp; `parec` for capture.
