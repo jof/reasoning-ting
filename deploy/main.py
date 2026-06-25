@@ -25,9 +25,10 @@ except Exception:
 
 _stock_cb = teenage.python_callback
 
-time.sleep_ms(200)
-SW = 4                                    # outer/first handle switch (mic-on gate)
-REST = ui.sw(SW)                          # its released state at boot
+# Outer handle switch is active-low: engaged == ui.sw(SW) == 0.  Use the ABSOLUTE
+# polarity (not a boot-time baseline) so it can't invert if the handle happens to
+# be squeezed while the unit powers on.
+SW = 4
 _pressed = False
 
 def cb(message):
@@ -42,7 +43,7 @@ def cb(message):
         return                            # swallow white-button release
     _stock_cb(message)                    # preserve all other stock behavior
     try:
-        on = (ui.sw(SW) != REST)          # outer handle switch engaged
+        on = (ui.sw(SW) == 0)             # engaged (active-low), absolute
     except Exception:
         return
     if on and not _pressed:
