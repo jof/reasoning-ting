@@ -41,7 +41,7 @@
           src = ./listener;
           cargoLock.lockFile = ./listener/Cargo.lock;
           nativeBuildInputs = [ pkgs.pkg-config ]
-            ++ lib.optionals stdenv.isLinux [ pkgs.wrapGAppsHook ];
+            ++ lib.optionals stdenv.isLinux [ pkgs.wrapGAppsHook3 ];
           buildInputs = buildDeps;
         };
       in
