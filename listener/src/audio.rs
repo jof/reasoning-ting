@@ -32,6 +32,20 @@ pub fn list_devices() -> Result<()> {
     Ok(())
 }
 
+/// Input device names (for the GUI device picker).
+pub fn input_device_names() -> Vec<String> {
+    let host = cpal::default_host();
+    let mut out = Vec::new();
+    if let Ok(devs) = host.input_devices() {
+        for d in devs {
+            if let Ok(n) = d.name() {
+                out.push(n);
+            }
+        }
+    }
+    out
+}
+
 pub fn start(device_name: Option<&str>) -> Result<Capture> {
     let host = cpal::default_host();
     let device = match device_name {

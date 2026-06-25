@@ -16,12 +16,19 @@ import teenage          # stock app (chdir's to /fat); registers its callback
 import ui, spl, time
 
 IN_SLOT, OUT_SLOT, SUBMIT_SLOT = 2, 3, 1  # sample slots repurposed for our tones
-try:
-    f = open("quindar_in.wav", "rb");  spl.load_wav(IN_SLOT, f, "oneshot");  f.close()
-    f = open("quindar_out.wav", "rb"); spl.load_wav(OUT_SLOT, f, "oneshot"); f.close()
-    f = open("submit.wav", "rb");      spl.load_wav(SUBMIT_SLOT, f, "oneshot"); f.close()
-except Exception:
-    pass
+
+def load_tones():
+    # (Re)load our tones into their slots. The stock app reloads the sample pack
+    # into ALL slots whenever the USB drive is mounted/ejected (examine_drive),
+    # which clobbers our tones — so we also re-assert on drive events (see cb).
+    try:
+        f = open("quindar_in.wav", "rb");  spl.load_wav(IN_SLOT, f, "oneshot");  f.close()
+        f = open("quindar_out.wav", "rb"); spl.load_wav(OUT_SLOT, f, "oneshot"); f.close()
+        f = open("submit.wav", "rb");      spl.load_wav(SUBMIT_SLOT, f, "oneshot"); f.close()
+    except Exception:
+        pass
+
+load_tones()
 
 _stock_cb = teenage.python_callback
 
@@ -42,6 +49,9 @@ def cb(message):
     if t == 2 and v == 0:
         return                            # swallow white-button release
     _stock_cb(message)                    # preserve all other stock behavior
+    if t == 4:                            # USB drive mount/eject -> stock reloaded
+        load_tones()                      # the sample pack into all slots; re-assert ours
+        return
     try:
         on = (ui.sw(SW) == 1)             # engaged == 1 (released == 0), absolute
     except Exception:

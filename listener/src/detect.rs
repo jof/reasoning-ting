@@ -15,6 +15,7 @@ pub enum Event {
     Submit,
 }
 
+#[derive(Clone)]
 pub struct Params {
     pub f_intro: f32,
     pub f_outro: f32,

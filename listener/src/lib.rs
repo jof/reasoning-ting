@@ -13,6 +13,7 @@ use std::sync::mpsc::RecvTimeoutError;
 use std::time::Duration;
 
 /// Engine configuration (front-ends build this from CLI args / GUI prefs).
+#[derive(Clone)]
 pub struct Config {
     pub device: Option<String>,
     pub key: String,        // voice push-to-talk key (matches keybindings.json)
