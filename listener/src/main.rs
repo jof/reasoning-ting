@@ -4,16 +4,11 @@
 //! release -> 2475 Hz -> we release the key. Focus-guarded so it only fires
 //! into a focused Claude window.
 
-mod audio;
-mod detect;
-mod focus;
-mod inject;
-
 use anyhow::Result;
 use clap::Parser;
-use detect::{Detector, Event, Params};
+use some_ting::detect::Detector;
+use some_ting::{audio, inject, Config, Event, Params, Status};
 use std::io::{IsTerminal, Write};
-use std::sync::mpsc::RecvTimeoutError;
 use std::time::Duration;
 
 #[derive(Parser, Debug)]
@@ -146,127 +141,57 @@ fn run_wav(path: &str, params: &Params) -> Result<()> {
 }
 
 fn run_live(args: &Args, params: Params) -> Result<()> {
-    let key = inject::parse_key(&args.key)?;
-    let submit_key = inject::parse_key(&args.submit_key)?;
-    let guard = focus::make(args.no_focus_guard, args.focus_proc.clone());
-    let mut injector = if args.dry_run {
-        None
-    } else {
-        Some(inject::Injector::new(key)?)
-    };
-    // Live input meter only when stderr is an interactive TTY (not a service/pipe).
     let meter = std::io::stderr().is_terminal();
     let threshold = params.threshold;
-
-    // Reconnect loop: a live mic streams continuously (even silence), so a
-    // sustained read timeout means the device died -> rebuild the stream.
-    loop {
-        let cap = match audio::start(args.device.as_deref()) {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("audio start failed: {e}; retrying in 2s");
-                std::thread::sleep(Duration::from_secs(2));
-                continue;
-            }
-        };
-        let sr = cap.sample_rate as f32;
-        let mut det = Detector::new(sr, &params);
-        let max_hold_samples = (args.max_hold * sr) as u64;
-        let mut held_samples: u64 = 0;
-        let mut stalls = 0;
-        let meter_interval = (sr / 15.0) as usize; // ~66 ms refresh
-        let mut meter_ctr = 0usize;
-        let mut peak = 0f32;
-        eprintln!(
-            "listening @ {sr} Hz  key={}  focus_guard={}  dry_run={}{}",
-            args.key,
-            !args.no_focus_guard,
-            args.dry_run,
+    let key = args.key.clone();
+    let submit = args.submit_key.clone();
+    let f_submit = args.f_submit;
+    let cfg = Config {
+        device: args.device.clone(),
+        key: args.key.clone(),
+        submit_key: args.submit_key.clone(),
+        params,
+        max_hold_secs: args.max_hold,
+        focus_guard: !args.no_focus_guard,
+        focus_proc: args.focus_proc.clone(),
+        dry_run: args.dry_run,
+    };
+    let stop = std::sync::atomic::AtomicBool::new(false);
+    some_ting::run(&cfg, &stop, |st| match st {
+        Status::Listening { sample_rate } => eprintln!(
+            "listening @ {sample_rate} Hz  key={key}  focus_guard={}  dry_run={}{}",
+            cfg.focus_guard,
+            cfg.dry_run,
             if meter { "  (live meter below)" } else { "" }
-        );
-
-        loop {
-            match cap.rx.recv_timeout(Duration::from_secs(3)) {
-                Ok(block) => {
-                    stalls = 0;
-                    for &s in &block {
-                        peak = peak.max(s.abs());
-                        if det.held() {
-                            held_samples += 1;
-                            if held_samples >= max_hold_samples {
-                                if let Some(inj) = injector.as_mut() {
-                                    inj.up();
-                                }
-                                det.set_held(false);
-                                held_samples = 0;
-                                log_event(meter, &format!("(safety key-up after {:.0}s held)", args.max_hold));
-                            }
-                        }
-                        if let Some(ev) = det.push(s) {
-                            match ev {
-                                Event::Intro => {
-                                    if !guard.allowed() {
-                                        det.set_held(false);
-                                        log_event(meter, "INTRO  (ignored: target window not focused)");
-                                        continue;
-                                    }
-                                    held_samples = 0;
-                                    if let Some(inj) = injector.as_mut() {
-                                        inj.down();
-                                    }
-                                    log_event(meter, &format!("INTRO/2525 -> START (keydown {})", args.key));
-                                }
-                                Event::Outro => {
-                                    if let Some(inj) = injector.as_mut() {
-                                        inj.up();
-                                    }
-                                    log_event(meter, &format!("OUTRO/2475 -> SEND  (keyup {})", args.key));
-                                }
-                                Event::Submit => {
-                                    if !guard.allowed() {
-                                        log_event(meter, "SUBMIT  (ignored: target window not focused)");
-                                        continue;
-                                    }
-                                    if let Some(inj) = injector.as_mut() {
-                                        inj.tap(submit_key);
-                                    }
-                                    log_event(meter, &format!("SUBMIT/{:.0} -> ENTER (tap {})", args.f_submit, args.submit_key));
-                                }
-                            }
-                        }
-                        meter_ctr += 1;
-                        if meter && meter_ctr >= meter_interval {
-                            meter_ctr = 0;
-                            let (mi, mo, ms) = det.mags();
-                            draw_meter(peak, mi, mo, ms, threshold, det.held());
-                            peak = 0.0;
-                        }
-                    }
-                }
-                Err(RecvTimeoutError::Timeout) => {
-                    stalls += 1;
-                    if stalls >= 3 {
-                        eprintln!("\naudio stalled (~9s no input); reconnecting...");
-                        if det.held() {
-                            if let Some(inj) = injector.as_mut() {
-                                inj.up();
-                            }
-                        }
-                        break;
-                    }
-                }
-                Err(RecvTimeoutError::Disconnected) => {
-                    eprintln!("\naudio stream ended; reconnecting...");
-                    if det.held() {
-                        if let Some(inj) = injector.as_mut() {
-                            inj.up();
-                        }
-                    }
-                    break;
-                }
+        ),
+        Status::Reconnecting => eprintln!("\nreconnecting..."),
+        Status::Level {
+            peak,
+            m_in,
+            m_out,
+            m_submit,
+            held,
+        } => {
+            if meter {
+                draw_meter(peak, m_in, m_out, m_submit, threshold, held);
             }
         }
-        std::thread::sleep(Duration::from_secs(1));
+        Status::Event { event, acted } => {
+            log_event(meter, &describe_event(event, acted, &key, &submit, f_submit))
+        }
+        Status::Error(e) => eprintln!("\nerror: {e}"),
+    });
+    Ok(())
+}
+
+/// Format a detection event for the CLI log.
+fn describe_event(ev: Event, acted: bool, key: &str, submit: &str, f_submit: f32) -> String {
+    match ev {
+        Event::Intro if acted => format!("INTRO/2525 -> START (keydown {key})"),
+        Event::Intro => "INTRO  (ignored: target window not focused)".into(),
+        Event::Outro => format!("OUTRO/2475 -> SEND  (keyup {key})"),
+        Event::Submit if acted => format!("SUBMIT/{f_submit:.0} -> ENTER (tap {submit})"),
+        Event::Submit => "SUBMIT  (ignored: target window not focused)".into(),
     }
 }
 

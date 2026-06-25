@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "Detect TING Quindar tones and drive Claude voice dictation (cross-platform)"
 
+[lib]
+name = "some_ting"
+path = "src/lib.rs"
+
 [[bin]]
 name = "some-ting-listen"
 path = "src/main.rs"
