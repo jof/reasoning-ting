@@ -17,3 +17,6 @@ some-ting.rep/
 deploy/*.wav
 
 analysis/*.wav
+
+# Rust build output
+/listener/target/

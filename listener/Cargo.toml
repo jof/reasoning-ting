@@ -1,0 +1,23 @@
+[package]
+name = "some-ting-listen"
+version = "0.1.0"
+edition = "2021"
+description = "Detect TING Quindar tones and drive Claude voice dictation (cross-platform)"
+
+[[bin]]
+name = "some-ting-listen"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+hound = "3"                     # WAV reading for offline (--wav) validation
+cpal = "0.15"                   # cross-platform audio capture
+enigo = "0.2"                   # cross-platform key synthesis (X11/macOS/Windows)
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = "0.13"                  # native X11 focus detection (no shelling out)
+
+[profile.release]
+opt-level = 3
+lto = true
