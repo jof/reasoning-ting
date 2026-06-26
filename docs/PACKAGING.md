@@ -39,13 +39,17 @@ Why not Flatpak/Snap:
   `~/.claude`, and touching the TINGDISK USB volume are all blocked or
   awkward-to-portal under the sandbox.
 
-Why not a hermetic **Nix-closure** binary: it links Nix's own `libasound`,
-whose ALSA plugin search path points into the Nix store and can't load the
-host's `pipewire-alsa` bridge — opening the PipeWire `default` device fails with
-ENXIO. (See `[[linux-audio-packaging-decision]]` / the README audio notes.) The
-binary must link the **host** `libasound` so it routes through the running
-PipeWire daemon. cpal stays the audio layer on every platform; on Linux "ALSA"
-is just the client API in front of PipeWire.
+Audio works in *both* a host-toolchain build and a hermetic Nix build. A Nix
+binary links Nix's own `libasound`, whose plugin/config search paths point into
+the store — but nixpkgs ships its own `pipewire` ALSA plugin
+(`${pipewire}/lib/alsa-lib/libasound_module_pcm_pipewire.so`) + config, ABI-
+matched to that libasound, and the flake's wrapper points the binary at them
+(plus `alsa-plugins` for the `default` fallback chain). The plugin connects to
+the running PipeWire daemon over its socket, so `nix run .#gui` does PipeWire
+audio on any distro (verified on Ubuntu), not just NixOS. cpal stays the audio
+layer everywhere; on Linux "ALSA" is just the client API in front of PipeWire.
+The per-user `install.sh` path below is simply the *lighter* dev option (a plain
+`cargo build` links the host libasound directly).
 
 What we ship:
 - `listener/target/release/some-ting` (tray GUI) + `some-ting-listen` (headless
@@ -81,20 +85,24 @@ Needs a Mac to build/sign/test — not exercised in the Linux dev environment.
 
 ## The role of Nix
 
-Nix is the **reproducible dev + build environment and CI**, not the Linux
-runtime format:
-- `nix develop` — exact toolchain (cargo, GTK3, ALSA, libxdo, snixembed) for
-  contributors on any machine.
-- `nix build .#gui` / `.#listener` — builds the binaries reproducibly. On Linux
-  these are fine for *building/CI* but are **not** a desktop-audio runtime (the
-  hermetic-libasound/PipeWire clash above); ship the host-linked binary instead.
-- Best fit for the **macOS** build and as the CI substrate that produces every
-  platform's artifacts.
+Nix is the **reproducible dev + build environment, CI, and a valid runtime**:
+- `nix develop` — exact toolchain (cargo, GTK3, ALSA+pipewire, libxdo,
+  snixembed) for contributors on any machine; the shell exports the ALSA→
+  PipeWire env so an in-shell `cargo run` has working audio.
+- `nix build .#gui` / `.#listener` — reproducible binaries whose wrapper bundles
+  the pipewire ALSA plugin + config, so `nix run` plays/captures through the
+  host PipeWire on any distro. Good for CI artifacts and the macOS build too.
+- The per-user `install.sh` (host-toolchain build) is the lighter alternative
+  when you don't want a Nix closure; both are first-class.
 
 ## Summary
 
 | Platform | Build | Runtime artifact | Sandbox |
 |---|---|---|---|
-| Linux | host cargo (or Nix for CI) | `install.sh` → `~/.local` (+ optional AppImage) | none (required) |
+| Linux | host cargo **or** `nix build` | `install.sh` → `~/.local`, or `nix run .#gui` (+ optional AppImage) | none (required — see Flatpak note) |
 | macOS | Nix or native | signed `.app` + DMG | macOS entitlements |
 | Dev/CI | `nix develop` / `nix build` | — | — |
+
+The remaining "none (required)" sandbox column is about **Flatpak/Snap**, which
+are unsuitable for the focus-guard/`/proc` + XTEST/`~/.claude`/USB reasons in
+the Linux section — *not* about audio. Audio is solved in every build above.

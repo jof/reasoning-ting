@@ -93,14 +93,18 @@ Run / flags: `--dry-run` (detect, never inject), `--no-focus-guard` (inject
 regardless of focus — use this to confirm injection works independent of the
 guard).
 
-### Running on Linux (important)
-Build with the **host toolchain**, not inside `nix develop` — a Nix-shell binary
-links Nix's libasound and can't open the host PipeWire `default` device (ENXIO).
-The system-linked binary routes through PipeWire correctly. Install per-user:
-```
-cargo build --release --features gui
-../packaging/linux/install.sh            # ~/.local; add --autostart for login
-```
+### Running on Linux
+Two equally-valid paths (both route through the host PipeWire — cpal speaks the
+ALSA client API, PipeWire services it):
+- **Nix:** `nix run .#gui` (or `nix build .#gui`). The wrapper bundles nixpkgs'
+  pipewire ALSA plugin + config, so audio works on any distro, NixOS or not.
+- **Host toolchain** (lighter; links the host libasound directly):
+  ```
+  cargo build --release --features gui
+  ../packaging/linux/install.sh          # ~/.local; add --autostart for login
+  ```
+Inside `nix develop`, a plain `cargo run` also has working audio — the dev shell
+exports `ALSA_PLUGIN_DIR`/`ALSA_CONFIG_PATH` for you.
 On **i3/sway/dwm** the SNI icon needs a tray host — run `snixembed` (bridges to
 i3bar). GNOME/KDE render it natively. See `docs/PACKAGING.md` for the full
 rationale (and why Flatpak/Snap don't fit this app).
