@@ -4,6 +4,8 @@ __pycache__/
 
 # Rust build output
 /listener/target/
+**/*.rs.bk
+*.pdb
 
 # generated tone WAVs (regenerate: python deploy/quindar_gen.py)
 deploy/*.wav
@@ -21,3 +23,11 @@ some-ting.rep/
 /result
 /result-*
 .direnv/
+
+# Editor / OS
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+.DS_Store
