@@ -15,7 +15,7 @@ use some_ting::{audio, Config, Event, Params, Status};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
-use tao::event_loop::{ControlFlow, EventLoop};
+use tao::event_loop::{ControlFlow, EventLoop, EventLoopProxy};
 use tray_icon::{
     menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu},
     Icon, TrayIcon, TrayIconBuilder,
@@ -92,24 +92,40 @@ fn save_prefs(cfg: &Config) {
     .save();
 }
 
-fn spawn_engine(cfg: &Config, tx: mpsc::Sender<Status>) -> Arc<AtomicBool> {
+fn spawn_engine(
+    cfg: &Config,
+    tx: mpsc::Sender<Status>,
+    proxy: EventLoopProxy<()>,
+) -> Arc<AtomicBool> {
     let stop = Arc::new(AtomicBool::new(false));
     let s = stop.clone();
     let cfg = cfg.clone();
     std::thread::spawn(move || {
         some_ting::run(&cfg, &s, move |st| {
             let _ = tx.send(st);
+            // Wake the GUI event loop so it drains the channel *now*. The
+            // tray-only loop's WaitUntil timer doesn't reliably fire on every
+            // host; without this nudge the channel was only drained when some
+            // unrelated event woke the loop, so the log + icon ran one event
+            // behind and the final event (e.g. submit) never showed at all.
+            let _ = proxy.send_event(());
         });
     });
     stop
 }
 
-fn restart(slot: &mut Option<Arc<AtomicBool>>, cfg: &Config, tx: &mpsc::Sender<Status>, paused: bool) {
+fn restart(
+    slot: &mut Option<Arc<AtomicBool>>,
+    cfg: &Config,
+    tx: &mpsc::Sender<Status>,
+    proxy: &EventLoopProxy<()>,
+    paused: bool,
+) {
     if let Some(old) = slot.take() {
         old.store(true, Ordering::Relaxed);
     }
     if !paused {
-        *slot = Some(spawn_engine(cfg, tx.clone()));
+        *slot = Some(spawn_engine(cfg, tx.clone(), proxy.clone()));
     }
 }
 
@@ -148,6 +164,8 @@ fn main() {
     }
 
     let (tx, rx) = mpsc::channel::<Status>();
+    let event_loop = EventLoop::new();
+    let proxy = event_loop.create_proxy();
     let mut cfg = base_config(dry_run, &prefs);
     log_line(
         "start",
@@ -159,10 +177,8 @@ fn main() {
             if cfg.dry_run { " dry-run" } else { "" },
         ),
     );
-    let mut engine: Option<Arc<AtomicBool>> = Some(spawn_engine(&cfg, tx.clone()));
+    let mut engine: Option<Arc<AtomicBool>> = Some(spawn_engine(&cfg, tx.clone(), proxy.clone()));
     let mut paused = false;
-
-    let event_loop = EventLoop::new();
 
     let menu = Menu::new();
     let status = MenuItem::new("starting…", false, None);
@@ -325,13 +341,13 @@ fn main() {
                     set_state(&tray, &mut icon_state, IconState::Paused);
                 } else {
                     log_line("resumed", "");
-                    engine = Some(spawn_engine(&cfg, tx.clone()));
+                    engine = Some(spawn_engine(&cfg, tx.clone(), proxy.clone()));
                 }
             } else if id == focus_guard.id() {
                 cfg.focus_guard = !cfg.focus_guard;
                 focus_guard.set_checked(cfg.focus_guard);
                 log_line("focus-guard", if cfg.focus_guard { "on — Claude windows only" } else { "off — inject anywhere" });
-                restart(&mut engine, &cfg, &tx, paused);
+                restart(&mut engine, &cfg, &tx, &proxy, paused);
                 save_prefs(&cfg);
             } else if id == keybind.id() {
                 status.set_text(write_keybinding());
@@ -343,7 +359,7 @@ fn main() {
                             o.set_checked(false);
                         }
                         it.set_checked(true);
-                        restart(&mut engine, &cfg, &tx, paused);
+                        restart(&mut engine, &cfg, &tx, &proxy, paused);
                         save_prefs(&cfg);
                     }
                 }
@@ -354,7 +370,7 @@ fn main() {
                             o.set_checked(false);
                         }
                         it.set_checked(true);
-                        restart(&mut engine, &cfg, &tx, paused);
+                        restart(&mut engine, &cfg, &tx, &proxy, paused);
                         save_prefs(&cfg);
                     }
                 }
