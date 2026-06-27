@@ -3,7 +3,12 @@
 Hacking the **Teenage Engineering TING (EP-2350)** into a hardware push-to-talk
 trigger for Claude Code's voice dictation. Squeeze the handle → a tone is emitted
 → a PC daemon detects it → keydown/keyup of the voice key into the focused
-Claude window.
+Claude window. Release to drop the transcript in; tap the white button to submit.
+
+Ships as a **menu-bar/tray app** (`some-ting`) with a status icon, input-device
+and sensitivity pickers, a focus-guard toggle, and a one-click keybinding writer
+— plus a headless CLI (`some-ting-listen`) for power users. Cross-platform (Linux
++ macOS) off one Rust core; reproducible builds via a Nix flake.
 
 ## The device
 - **EP-2350 "TING"** — RP2350-based handheld mic/sampler/effects unit.
@@ -12,7 +17,7 @@ Claude window.
 - Custom native modules: `ui` (handle/buttons/LEDs/accel/ADC), `spl` (sample
   load/trigger), `fx` (effects chain incl. a `RING` oscillator).
 - `main.py` is **frozen** into the firmware; it reads `/fat/config.json` + WAVs.
-- Audio goes out the **3.5mm analog jack** into the PC's front mic input
+- Audio goes out the **3.5mm analog jack** into the PC's mic input
   (USB-C is control/data only: a CDC-ACM REPL + mass storage "TINGDISK").
 - Connects over USB as `2367:0620`. BOOTSEL ("TING BOOT") shows as
   `Board-ID: RP2350`, drag-drop UF2 target.
@@ -21,12 +26,10 @@ Claude window.
 Emit **Quindar-style tones** from firmware on handle press/release:
 - press (`ui.handle()` rises past a threshold) → 2525 Hz burst ("start")
 - release (falls below) → 2475 Hz burst ("stop")
-Two distinct narrowband tones = unambiguous press AND release, immune to long
-speech pauses. PC daemon Goertzel-detects them and synthesizes a keypress
-(e.g. F12, bound to `/voice`) into the focused terminal.
-
-Detection of the click acoustically was rejected: the rocker is acoustically
-asymmetric (one edge ~-8 dB, the other near noise floor — see `analysis/`).
+- white button → 3000 Hz burst ("submit" → Enter)
+Distinct narrowband tones = unambiguous press, release, AND submit, immune to
+long speech pauses. PC daemon Goertzel-detects them and synthesizes a keypress
+(F12, bound to `/voice`; Enter to submit) into the focused Claude window.
 
 ## Key findings
 - Firmware is **unsigned** → RP2350 secure boot is off → modified firmware runs.
@@ -37,30 +40,20 @@ asymmetric (one edge ~-8 dB, the other near noise floor — see `analysis/`).
 - `spl.trigger(-1, slot, True/False)` plays a loaded sample; `spl.load_wav(slot,
   fh, playmode)` loads one. Playmodes: oneshot / hold / startstop.
 
-## ⚠️ Hardware hazard (important)
-The TING destabilizes whatever USB **controller** it's plugged into — opening
-its CDC port (DTR/RTS the firmware never ACKs) **or** a MicroPython soft-reboot
-can reset the whole controller, dropping every device on it. We crashed:
-- Bus 005 controller `0000:59:00.0` (→ killed Bluetooth + USB audio)
-- Bus 003 controller `0000:57:00.0` (→ killed keyboard + mouse)
-
-**Recovery** (rebind the affected controller; needs sudo):
-```
-echo -n <PCI_ADDR> | sudo tee /sys/bus/pci/drivers/xhci_hcd/unbind
-echo -n <PCI_ADDR> | sudo tee /sys/bus/pci/drivers/xhci_hcd/bind
-```
-All ports tried so far land on Bus 005 or Bus 003 (both shared with critical
-devices). A truly isolated controller, or offline flashing, avoids the risk.
-
 ## Repo layout
 - `deploy/` — **TING-side**: `main.py` (runs on the device) + `quindar_gen.py`
   (generates the tone WAVs). These files go on TINGDISK.
-- `listener/` — **the product**: Rust daemon that detects the tones and drives
-  Claude voice. See `listener/README.md`.
-- `packaging/` — systemd user service (Linux) + launchd LaunchAgent (macOS).
+- `listener/` — **the product**: Rust core + the `some-ting` tray GUI and
+  `some-ting-listen` CLI (same `some_ting::run` engine). See `listener/README.md`.
+- `flake.nix` — Nix dev shell (`nix develop`) + per-platform builds
+  (`nix build .#gui` / `.#listener`); the Linux binaries bundle the PipeWire
+  ALSA route so `nix run .#gui` just works.
+- `packaging/` — `linux/` per-user install (icon, `.desktop`, `install.sh`),
+  `macos/` `.app` bundle/sign/notarize, plus systemd-user + launchd units.
 - `firmware/` — stock TE UF2, release notes, `uf2_strings.txt` (RE reference /
   recovery image).
-- `docs/` — how it works + the reverse-engineering writeup.
+- `docs/` — how it works, the reverse-engineering writeup, and `PACKAGING.md`
+  (per-platform distribution strategy + rationale).
 - `dev/` — dev/RE/tuning utilities (REPL bridge `tingrepl.py`, USB `portcheck.sh`,
   `99-ting.rules`, capture analyzer `characterize.py`, `uf2_to_bin.py`).
 
@@ -84,11 +77,17 @@ patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
    (Chat). **Restart Claude Code** so it loads the binding.
 3. **Audio:** the TING (front-mic input) must be the system **default input**
    (it is) so both Claude's dictation and the daemon hear it.
-4. **Daemon** (separate terminal, keeps running):
-   `listener/target/release/some-ting-listen`
-   - `--dry-run` to watch detections without keystrokes
-   - `--no-focus-guard` to inject regardless of focus
-   - focus guard only injects when a window with `claude` in its process tree is focused
+4. **App** — pick one:
+   - **Tray GUI** (recommended): `some-ting` (or `nix run .#gui`). Status icon
+     (red = standing by, green = voice key held), menu for input device /
+     sensitivity / focus-guard / "Write Claude keybinding". Run from a terminal
+     to watch the event log (`some-ting │ squeeze   voice key down (f12)` …);
+     device/sensitivity/focus-guard choices persist across restarts. On
+     i3/sway/dwm run `snixembed` so the icon shows.
+   - **Headless CLI:** `some-ting-listen` (keeps running in a terminal).
+     `--dry-run` watches detections without keystrokes; `--no-focus-guard`
+     injects regardless of focus. The focus guard otherwise only injects when a
+     window with `claude` in its process tree is focused.
 5. **Use:** focus Claude, **squeeze** the handle (2525 Hz → F12 down → dictation
    records), talk, **release** (2475 Hz → F12 up → transcript drops into the
    input). Repeat to dictate multiple chunks; press the **white button**
@@ -97,9 +96,17 @@ patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
 
 Prereqs installed: `xdotool`, venv has numpy/scipy/pyusb/mcp; `parec` for capture.
 
-## Daemon (listener/)
-Rust, cross-platform, single self-contained binary (cpal audio, enigo injection,
-native x11rb focus on Linux). Detector unit-tested + validated against a real
-capture. Build: `cargo build --release` (Linux needs `libxdo-dev`). Validate the
-Claude keybinding without the TING: `some-ting-listen --test-key`. The original
-Python prototype proved the pipeline and has been retired in favor of this.
+## App (listener/)
+Rust, cross-platform, off one core engine (`some_ting::run`): cpal audio →
+Goertzel-style tone detector → enigo key injection, with a native x11rb focus
+guard on Linux. Two front-ends — the `some-ting` tray GUI (`--features gui`) and
+the `some-ting-listen` CLI — share it. Detector + icon unit-tested (`cargo test`)
+and validated against a real capture.
+
+Build (host toolchain): `cargo build --release --features gui` (Linux needs
+`libgtk-3-dev` + `libayatana-appindicator3-dev` + `libxdo-dev`), then
+`packaging/linux/install.sh` for a per-user install. Or build reproducibly with
+Nix: `nix build .#gui`. On Linux "ALSA" is just the client API in front of
+**PipeWire** — both build paths route through it (see `docs/PACKAGING.md`).
+Validate the Claude keybinding without the TING: `some-ting-listen --test-key`.
+The original Python prototype proved the pipeline and has been retired.
