@@ -78,8 +78,9 @@ cargo build --release --features gui --bin some-ting   # -> target/release/some-
 Linux needs `libgtk-3-dev` + `libayatana-appindicator3-dev`; macOS/Windows need
 no extra system libs.
 
-Icon states (procedural, see `icon.rs`): grey **idle** · green **listening** ·
-red **keyed** (voice held) · grey-bars **paused**. The current state is also
+Icon states (procedural, see `icon.rs`): grey **idle** · red **listening**
+(armed / standing by) · green **keyed** (voice key held) · grey-bars
+**paused**. The current state is also
 mirrored into the tray **tooltip** (some XEmbed bridges redraw a changed pixmap
 slowly) and printed to stderr — so launched from a terminal you see every
 `[state]`/`[event]` line live, which is the fastest way to tell detection from

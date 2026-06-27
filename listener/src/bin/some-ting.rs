@@ -11,7 +11,7 @@
 
 use some_ting::icon::{self, IconState};
 use some_ting::prefs::Prefs;
-use some_ting::{audio, Config, Params, Status};
+use some_ting::{audio, Config, Event, Params, Status};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
@@ -47,11 +47,22 @@ fn state_label(state: IconState) -> &'static str {
 fn set_state(tray: &Option<TrayIcon>, cur: &mut IconState, want: IconState) {
     if *cur != want {
         *cur = want;
-        eprintln!("[state] {}", state_label(want));
         if let Some(t) = tray {
             let _ = t.set_icon(Some(make_icon(want)));
             let _ = t.set_tooltip(Some(format!("some-ting — {}", state_label(want))));
         }
+    }
+}
+
+/// One consistent log line per user-visible event:
+///   `some-ting │ <action>  <detail>`
+/// Front of every normal-usage line so squeeze/release/submit read as a
+/// uniform stream (see the match arms in main()).
+fn log_line(action: &str, detail: &str) {
+    if detail.is_empty() {
+        eprintln!("some-ting │ {action}");
+    } else {
+        eprintln!("some-ting │ {action:<9} {detail}");
     }
 }
 
@@ -138,6 +149,16 @@ fn main() {
 
     let (tx, rx) = mpsc::channel::<Status>();
     let mut cfg = base_config(dry_run, &prefs);
+    log_line(
+        "start",
+        &format!(
+            "key={} submit={} focus-guard={}{}",
+            cfg.key,
+            cfg.submit_key,
+            if cfg.focus_guard { "on" } else { "off" },
+            if cfg.dry_run { " dry-run" } else { "" },
+        ),
+    );
     let mut engine: Option<Arc<AtomicBool>> = Some(spawn_engine(&cfg, tx.clone()));
     let mut paused = false;
 
@@ -214,23 +235,35 @@ fn main() {
         while let Ok(st) = rx.try_recv() {
             match st {
                 Status::Listening { sample_rate } => {
+                    let dev = cfg.device.as_deref().unwrap_or("default");
+                    log_line("listening", &format!("{dev} @ {sample_rate} Hz · standing by"));
                     status.set_text(format!("● listening @ {sample_rate} Hz"));
                     set_state(&tray, &mut icon_state, IconState::Listening);
                 }
                 Status::Reconnecting => {
+                    log_line("reconnect", "audio dropped, retrying…");
                     status.set_text("… reconnecting");
                     set_state(&tray, &mut icon_state, IconState::Idle);
                 }
                 Status::Event { event, acted } => {
-                    // acted=false means the focus guard suppressed it — say so,
-                    // since "nothing happened" is exactly the confusing case.
-                    let note = if acted {
-                        "→ sent"
-                    } else {
-                        "→ ignored (focus guard: no Claude window focused)"
+                    // One uniform line per event. acted=false = focus guard
+                    // suppressed it (the confusing "nothing happened" case).
+                    let suppressed = "ignored — no Claude window focused";
+                    let (action, detail, short) = match (event, acted) {
+                        (Event::Intro, true) => {
+                            ("squeeze", format!("voice key down ({})", cfg.key), "voice ON")
+                        }
+                        (Event::Intro, false) => ("squeeze", suppressed.into(), "ignored"),
+                        (Event::Outro, _) => {
+                            ("release", format!("voice key up ({})", cfg.key), "voice OFF")
+                        }
+                        (Event::Submit, true) => {
+                            ("submit", format!("{} tapped", cfg.submit_key), "submit")
+                        }
+                        (Event::Submit, false) => ("submit", suppressed.into(), "ignored"),
                     };
-                    eprintln!("[event] {event:?} {note}");
-                    status.set_text(format!("{event:?} {note}"));
+                    log_line(action, &detail);
+                    status.set_text(format!("{action} · {short}"));
                 }
                 Status::Level { held, .. } => {
                     set_state(
@@ -240,7 +273,7 @@ fn main() {
                     );
                 }
                 Status::Error(e) => {
-                    eprintln!("[error] {e}");
+                    log_line("error", &e);
                     status.set_text(format!("error: {e}"));
                     set_state(&tray, &mut icon_state, IconState::Idle);
                 }
@@ -261,14 +294,17 @@ fn main() {
                     if let Some(s) = engine.take() {
                         s.store(true, Ordering::Relaxed);
                     }
+                    log_line("paused", "");
                     status.set_text("paused");
                     set_state(&tray, &mut icon_state, IconState::Paused);
                 } else {
+                    log_line("resumed", "");
                     engine = Some(spawn_engine(&cfg, tx.clone()));
                 }
             } else if id == focus_guard.id() {
                 cfg.focus_guard = !cfg.focus_guard;
                 focus_guard.set_checked(cfg.focus_guard);
+                log_line("focus-guard", if cfg.focus_guard { "on — Claude windows only" } else { "off — inject anywhere" });
                 restart(&mut engine, &cfg, &tx, paused);
                 save_prefs(&cfg);
             } else if id == keybind.id() {

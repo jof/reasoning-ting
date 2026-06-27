@@ -1,8 +1,8 @@
 //! Procedural status-tray icons (RGBA8), shared so the live tray and the PNG
 //! previews are pixel-identical. A circular "transmit" motif:
 //!   Idle      — grey hollow ring (running, not listening)
-//!   Listening — green ring with a center dot (armed/ready)
-//!   Keyed     — solid red disc (recording / key held)
+//!   Listening — red ring with a center dot (armed / standing by)
+//!   Keyed     — solid green disc (voice key held / transmitting)
 //!   Paused    — dim ring with a pause glyph (||)
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -18,8 +18,8 @@ pub const SIZE: u32 = 22;
 fn color(s: IconState) -> (u8, u8, u8) {
     match s {
         IconState::Idle => (150, 150, 150),
-        IconState::Listening => (40, 185, 95),
-        IconState::Keyed => (228, 55, 55),
+        IconState::Listening => (228, 55, 55), // standing by / armed → red
+        IconState::Keyed => (40, 185, 95),     // voice key held → green
         IconState::Paused => (140, 140, 140),
     }
 }
