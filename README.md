@@ -79,7 +79,7 @@ patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
    (it is) so both Claude's dictation and the daemon hear it.
 4. **App** — pick one:
    - **Tray GUI** (recommended): `some-ting` (or `nix run .#gui`). Status icon
-     (red = standing by, green = voice key held), menu for input device /
+     (green = standing by, red = voice key held / recording), menu for input device /
      sensitivity / focus-guard / "Write Claude keybinding". Run from a terminal
      to watch the event log (`some-ting │ squeeze   voice key down (f12)` …);
      device/sensitivity/focus-guard choices persist across restarts. On

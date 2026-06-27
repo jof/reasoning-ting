@@ -1,9 +1,16 @@
 //! Procedural status-tray icons (RGBA8), shared so the live tray and the PNG
-//! previews are pixel-identical. A circular "transmit" motif:
-//!   Idle      — grey hollow ring (running, not listening)
-//!   Listening — red ring with a center dot (armed / standing by)
-//!   Keyed     — solid green disc (voice key held / transmitting)
-//!   Paused    — dim ring with a pause glyph (||)
+//! previews are pixel-identical. A filled "transmit" dot whose COLOR is the
+//! state signal:
+//!   Idle      — grey disc with a darker hub (running, not listening)
+//!   Listening — green disc with a darker hub (armed / standing by)
+//!   Keyed     — solid red disc (voice key held / transmitting)
+//!   Paused    — grey disc with a pause glyph (||)
+//!
+//! Every state paints the SAME fully-opaque disc footprint (only the color and
+//! an inner glyph differ). That's deliberate: some XEmbed/SNI tray hosts
+//! (snixembed → i3bar) don't clear the old pixmap before drawing the new one,
+//! so a transparent-background icon would let the previous state show through
+//! ("red under green"). An identical opaque footprint overpaints it cleanly.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IconState {
@@ -18,9 +25,9 @@ pub const SIZE: u32 = 22;
 fn color(s: IconState) -> (u8, u8, u8) {
     match s {
         IconState::Idle => (150, 150, 150),
-        IconState::Listening => (228, 55, 55), // standing by / armed → red
-        IconState::Keyed => (40, 185, 95),     // voice key held → green
-        IconState::Paused => (140, 140, 140),
+        IconState::Listening => (40, 185, 95), // standing by / armed → green
+        IconState::Keyed => (228, 55, 55),     // voice key held / recording → red
+        IconState::Paused => (120, 120, 120),
     }
 }
 
@@ -30,13 +37,17 @@ fn aa(e: f32) -> f32 {
 }
 
 /// RGBA8 buffer, SIZE×SIZE, premultiplied-friendly (straight alpha).
+///
+/// Every state is a filled, fully-opaque disc of the SAME radius — only the
+/// color and an opaque inner glyph change between states. That identical opaque
+/// footprint is what lets a fresh icon completely overpaint the previous one on
+/// tray hosts that don't clear before drawing (see the module docs).
 pub fn rgba(state: IconState) -> Vec<u8> {
     let n = SIZE as i32;
     let (cr, cg, cb) = color(state);
     let c = (n as f32 - 1.0) / 2.0;
     let r_out = c - 1.5;
-    let ring_w = 3.2;
-    let r_in = r_out - ring_w;
+    let r_in = r_out - 3.2; // inner-glyph radius (hub / pause bars)
     let mut buf = vec![0u8; (n * n * 4) as usize];
 
     for y in 0..n {
@@ -45,25 +56,31 @@ pub fn rgba(state: IconState) -> Vec<u8> {
             let dy = y as f32 - c;
             let d = (dx * dx + dy * dy).sqrt();
 
-            let mut a = match state {
-                IconState::Keyed => aa(r_out - d), // filled disc
-                _ => aa(r_out - d).min(aa(d - r_in)), // ring
-            };
-            if state == IconState::Listening {
-                a = a.max(aa(r_in - 1.8 - d)); // center dot
-            }
-            if state == IconState::Paused {
-                // two vertical bars over the ring center
-                let in_bar = dx.abs() > 1.1 && dx.abs() < 2.7 && dy.abs() < r_in;
-                if in_bar {
-                    a = 1.0;
+            // Base: one filled opaque disc for EVERY state (AA only at the rim).
+            let a = aa(r_out - d);
+
+            // Inner glyph, drawn in an opaque contrasting shade so the opaque
+            // footprint stays identical across states (clean overpaint).
+            let (mut rr, mut gg, mut bb) = (cr, cg, cb);
+            match state {
+                // Keyed = solid disc (transmitting), no inner glyph.
+                IconState::Keyed => {}
+                // A darker hub reads as "armed/idle, not transmitting".
+                IconState::Listening if d < r_in - 1.0 => (rr, gg, bb) = (24, 120, 62),
+                IconState::Idle if d < r_in - 1.0 => (rr, gg, bb) = (105, 105, 105),
+                IconState::Paused => {
+                    let in_bar = dx.abs() > 1.1 && dx.abs() < 2.7 && dy.abs() < r_in;
+                    if in_bar {
+                        (rr, gg, bb) = (60, 60, 60);
+                    }
                 }
+                _ => {}
             }
 
             let i = ((y * n + x) * 4) as usize;
-            buf[i] = cr;
-            buf[i + 1] = cg;
-            buf[i + 2] = cb;
+            buf[i] = rr;
+            buf[i + 1] = gg;
+            buf[i + 2] = bb;
             buf[i + 3] = (a.clamp(0.0, 1.0) * 255.0) as u8;
         }
     }
@@ -112,35 +129,41 @@ mod tests {
     ];
 
     #[test]
-    fn buffer_is_correct_size_and_colored() {
+    fn buffer_is_correct_size_and_drawn() {
         for s in ALL {
             let buf = rgba(s);
             assert_eq!(buf.len(), (SIZE * SIZE * 4) as usize, "{s:?} wrong size");
-            let (cr, cg, cb) = color(s);
-            // Every visible pixel carries the state's color (straight alpha).
-            for px in buf.chunks_exact(4).filter(|px| px[3] > 0) {
-                assert_eq!((px[0], px[1], px[2]), (cr, cg, cb), "{s:?} stray color");
-            }
-            // Something is actually drawn.
             assert!(opaque_count(s) > 0, "{s:?} drew nothing");
         }
     }
 
     #[test]
-    fn center_distinguishes_states() {
-        // Listening (center dot) and Keyed (filled disc) are solid in the
-        // middle; Idle is a hollow ring (transparent center).
-        assert!(center_alpha(IconState::Listening) > 200, "listening dot missing");
-        assert!(center_alpha(IconState::Keyed) > 200, "keyed disc missing");
-        assert!(center_alpha(IconState::Idle) < 50, "idle should be hollow");
+    fn identical_opaque_footprint() {
+        // The clean-overpaint invariant: every state fills the SAME opaque disc,
+        // so a fresh icon fully covers the previous one even on tray hosts that
+        // don't clear before drawing. If footprints differ, stale pixels of the
+        // old state would show through ("red under green").
+        let base = opaque_count(IconState::Idle);
+        for s in ALL {
+            assert_eq!(opaque_count(s), base, "{s:?} opaque footprint differs");
+        }
     }
 
     #[test]
-    fn keyed_disc_is_more_filled_than_listening_ring() {
-        assert!(
-            opaque_count(IconState::Keyed) > opaque_count(IconState::Listening),
-            "filled disc should have more opaque pixels than a ring + dot"
-        );
+    fn every_state_is_a_filled_disc() {
+        // No hollow centers — the middle pixel is opaque for all states.
+        for s in ALL {
+            assert!(center_alpha(s) > 200, "{s:?} center not opaque");
+        }
+    }
+
+    #[test]
+    fn color_distinguishes_listening_and_keyed() {
+        // The primary signal is color: listening reads green, keyed reads red.
+        let (lr, lg, lb) = color(IconState::Listening);
+        assert!(lg > lr && lg > lb, "listening should read green");
+        let (kr, kg, kb) = color(IconState::Keyed);
+        assert!(kr > kg && kr > kb, "keyed should read red");
     }
 
     #[test]

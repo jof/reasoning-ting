@@ -215,9 +215,22 @@ fn main() {
     let mut tray: Option<TrayIcon> = None;
     let mut tray_tried = false;
     let mut icon_state = IconState::Idle;
+    let mut refresh_tick: u32 = 0;
 
     event_loop.run(move |_event, _, control_flow| {
         *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(100));
+
+        // Re-assert the current icon a few times a second, not just on change.
+        // Some XEmbed/SNI hosts (snixembed → i3bar) silently drop set_icon
+        // calls, which would otherwise leave the tray stuck on a stale state
+        // until the next transition ("only half the transitions show"). The
+        // loop wakes ~10×/s (WaitUntil above); re-push every 4th wake (~2.5/s).
+        refresh_tick = refresh_tick.wrapping_add(1);
+        if refresh_tick.is_multiple_of(4) {
+            if let Some(t) = &tray {
+                let _ = t.set_icon(Some(make_icon(icon_state)));
+            }
+        }
 
         if !tray_tried {
             tray_tried = true;
@@ -264,6 +277,19 @@ fn main() {
                     };
                     log_line(action, &detail);
                     status.set_text(format!("{action} · {short}"));
+                    // Drive the tray icon straight off the edge events too, not
+                    // just the ~15 Hz Level stream — slow XEmbed bridges
+                    // (snixembed) redraw late, so kicking it at the exact
+                    // squeeze/release moment makes the state feel responsive.
+                    match (event, acted) {
+                        (Event::Intro, true) => {
+                            set_state(&tray, &mut icon_state, IconState::Keyed)
+                        }
+                        (Event::Outro, _) => {
+                            set_state(&tray, &mut icon_state, IconState::Listening)
+                        }
+                        _ => {}
+                    }
                 }
                 Status::Level { held, .. } => {
                     set_state(
