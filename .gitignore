@@ -10,15 +10,6 @@ __pycache__/
 # generated tone WAVs (regenerate: python deploy/quindar_gen.py)
 deploy/*.wav
 
-# extracted flash image (regenerate: python dev/uf2_to_bin.py)
-*.bin
-
-# Ghidra project files (RE, not part of the product)
-reasoning-ting.gpr
-reasoning-ting.lock
-reasoning-ting.lock~
-reasoning-ting.rep/
-
 # Nix
 /result
 /result-*

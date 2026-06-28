@@ -32,8 +32,6 @@ long speech pauses. PC daemon Goertzel-detects them and synthesizes a keypress
 (F12, bound to `/voice`; Enter to submit) into the focused Claude window.
 
 ## Key findings
-- Firmware is **unsigned** → RP2350 secure boot is off → modified firmware runs.
-- BOOTSEL is mask-ROM → **unbrickable**; recover by re-dropping the stock UF2.
 - `ui.handle()` → 0.0–1.0 float (handle position). The handle is **analog**
   (ADC ch1, rest ~2034/4095); the "two switches" read as ADC, not button events.
 - A constant **type-3 tick** event streams from firmware (the apparent "flood").
@@ -59,20 +57,13 @@ long speech pauses. PC daemon Goertzel-detects them and synthesizes a keypress
   ALSA route so `nix run .#gui` just works.
 - `packaging/` — `linux/` per-user install (icon, `.desktop`, `install.sh`),
   `macos/` `.app` bundle/sign/notarize, plus systemd-user + launchd units.
-- `firmware/` — stock TE UF2, release notes, `uf2_strings.txt` (RE reference /
-  recovery image).
-- `docs/` — how it works, the reverse-engineering writeup, and `PACKAGING.md`
-  (per-platform distribution strategy + rationale).
-- `dev/` — dev/RE/tuning utilities (REPL bridge `tingrepl.py`, USB `portcheck.sh`,
-  `99-ting.rules`, capture analyzer `characterize.py`, `uf2_to_bin.py`).
+- `docs/` — `PACKAGING.md` (per-platform distribution strategy + rationale).
 
 ## Approach taken (resolved)
-A from-scratch UF2 is infeasible (TE's `ui`/`spl`/`fx` are closed). But Ghidra RE
-of the boot path showed the firmware runs **`fat/main.py` from TINGDISK if present**
-(else the frozen `teenage.py`) — see `docs/reverse-engineering.md`. So **no
-patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
-(stock app) + a handle→Quindar layer. Proven end-to-end (clean 2525/2475 tones,
-~290x detection margin).
+**No patching/flashing.** The firmware runs **`fat/main.py` from TINGDISK if
+present** (else the frozen stock `teenage.py`), so we drop a `main.py` on the
+drive that does `import teenage` (stock app) + a handle→Quindar layer. Proven
+end-to-end (clean 2525/2475 tones, ~290x detection margin).
 
 ## Running it (live)
 1. **Device:** `main.py` + `quindar_in.wav` + `quindar_out.wav` on TINGDISK
@@ -102,8 +93,6 @@ patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
    input). Repeat to dictate multiple chunks; press the **white button**
    (3000 Hz → Enter) to submit when ready. Needs a Claude.ai account (voice
    isn't available on API keys). Max-hold safety defaults to 600 s.
-
-Prereqs installed: `xdotool`, venv has numpy/scipy/pyusb/mcp; `parec` for capture.
 
 ## App (listener/)
 Rust, cross-platform, off one core engine (`reasoning_ting::run`): cpal audio →
