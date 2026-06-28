@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>some-ting</string>
+    <string>reasoning-ting</string>
     <key>CFBundleDisplayName</key>
-    <string>some-ting</string>
+    <string>reasoning-ting</string>
     <key>CFBundleIdentifier</key>
-    <string>com.thejof.some-ting</string>
+    <string>com.thejof.reasoning-ting</string>
     <key>CFBundleExecutable</key>
-    <string>some-ting</string>
+    <string>reasoning-ting</string>
     <key>CFBundleVersion</key>
     <string>0.1.0</string>
     <key>CFBundleShortVersionString</key>
@@ -23,6 +23,6 @@
     <true/>
     <!-- Shown when macOS prompts for microphone access (capturing the TING). -->
     <key>NSMicrophoneUsageDescription</key>
-    <string>some-ting listens to the TING's tones on your audio input to drive Claude voice.</string>
+    <string>reasoning-ting listens to the TING's tones on your audio input to drive Claude voice.</string>
 </dict>
 </plist>

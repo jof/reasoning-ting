@@ -3,6 +3,6 @@
 fn main() {
     let dir = std::env::args().nth(1).unwrap_or_else(|| "/tmp/someting-icons".into());
     std::fs::create_dir_all(&dir).unwrap();
-    some_ting::icon::dump_rgba(&dir).unwrap();
-    println!("wrote {}x{} icons to {dir}", some_ting::icon::SIZE, some_ting::icon::SIZE);
+    reasoning_ting::icon::dump_rgba(&dir).unwrap();
+    println!("wrote {}x{} icons to {dir}", reasoning_ting::icon::SIZE, reasoning_ting::icon::SIZE);
 }

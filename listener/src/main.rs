@@ -1,4 +1,4 @@
-//! some-ting-listen: detect the TING's Quindar tones and drive Claude voice.
+//! reasoning-ting-listen: detect the TING's Quindar tones and drive Claude voice.
 //!
 //! Squeeze the handle -> firmware emits 2525 Hz -> we hold the voice key down;
 //! release -> 2475 Hz -> we release the key. Focus-guarded so it only fires
@@ -6,8 +6,8 @@
 
 use anyhow::Result;
 use clap::Parser;
-use some_ting::detect::Detector;
-use some_ting::{audio, inject, Config, Event, Params, Status};
+use reasoning_ting::detect::Detector;
+use reasoning_ting::{audio, inject, Config, Event, Params, Status};
 use std::io::{IsTerminal, Write};
 use std::time::Duration;
 
@@ -157,7 +157,7 @@ fn run_live(args: &Args, params: Params) -> Result<()> {
         dry_run: args.dry_run,
     };
     let stop = std::sync::atomic::AtomicBool::new(false);
-    some_ting::run(&cfg, &stop, |st| match st {
+    reasoning_ting::run(&cfg, &stop, |st| match st {
         Status::Listening { sample_rate } => eprintln!(
             "listening @ {sample_rate} Hz  key={key}  focus_guard={}  dry_run={}{}",
             cfg.focus_guard,

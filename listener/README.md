@@ -1,4 +1,4 @@
-# some-ting-listen
+# reasoning-ting-listen
 
 Cross-platform daemon that listens for the TING's Quindar tones (2525 Hz on
 squeeze, 2475 Hz on release, 3000 Hz on the white button — emitted by our
@@ -27,17 +27,17 @@ on macOS; ships as a systemd unit / launchd LaunchAgent).
 
 ## Build
 ```
-cargo build --release      # -> target/release/some-ting-listen
+cargo build --release      # -> target/release/reasoning-ting-listen
 ```
 Linux build/runtime needs **libxdo** (enigo's X11 backend): `apt install libxdo-dev`.
 macOS/Windows need no extra system libs.
 
 ## Run
 ```
-some-ting-listen --list-devices
-some-ting-listen --wav capture.wav                   # offline detector check (any recording)
-some-ting-listen --dry-run --no-focus-guard          # live detect, no keystrokes
-some-ting-listen                                     # live: key=f12, focus-guarded
+reasoning-ting-listen --list-devices
+reasoning-ting-listen --wav capture.wav                   # offline detector check (any recording)
+reasoning-ting-listen --dry-run --no-focus-guard          # live detect, no keystrokes
+reasoning-ting-listen                                     # live: key=f12, focus-guarded
 ```
 Flags: `--device <substr>`, `--key <f12|space|…>` (must match
 `~/.claude/keybindings.json`), `--threshold`, `--max-hold <s>` (safety release),
@@ -70,10 +70,10 @@ Flags: `--device <substr>`, `--key <f12|space|…>` (must match
 | Windows | ✅ | ✅ SendInput | ⏳ stub (allows) |
 | Linux/Wayland | ✅ | ⚠️ enigo libei/uinput TBD | ⏳ |
 
-## GUI (menu-bar) — `some-ting`
-Cross-platform status-tray app on the same core engine (`some_ting::run`). Build:
+## GUI (menu-bar) — `reasoning-ting`
+Cross-platform status-tray app on the same core engine (`reasoning_ting::run`). Build:
 ```
-cargo build --release --features gui --bin some-ting   # -> target/release/some-ting
+cargo build --release --features gui --bin reasoning-ting   # -> target/release/reasoning-ting
 ```
 Linux needs `libgtk-3-dev` + `libayatana-appindicator3-dev`; macOS/Windows need
 no extra system libs.

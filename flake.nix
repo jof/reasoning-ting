@@ -1,5 +1,5 @@
 {
-  description = "some-ting — TING handle → Quindar tones → Claude voice (push-to-talk)";
+  description = "reasoning-ting — TING handle → Quindar tones → Claude voice (push-to-talk)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -44,12 +44,12 @@
         # and point libasound at them. The plugin connects to whatever PipeWire
         # daemon is running over its socket, so this works on NixOS *and* on
         # other distros (verified on Ubuntu). No host ALSA config needed.
-        alsaPluginDir = pkgs.runCommand "some-ting-alsa-plugins" { } ''
+        alsaPluginDir = pkgs.runCommand "reasoning-ting-alsa-plugins" { } ''
           mkdir -p $out/lib/alsa-lib
           ln -s ${pkgs.pipewire}/lib/alsa-lib/*     $out/lib/alsa-lib/
           ln -s ${pkgs.alsa-plugins}/lib/alsa-lib/* $out/lib/alsa-lib/
         '';
-        alsaConf = pkgs.writeText "some-ting-asound.conf" ''
+        alsaConf = pkgs.writeText "reasoning-ting-asound.conf" ''
           <${pkgs.alsa-lib}/share/alsa/alsa.conf>
           <${pkgs.pipewire}/share/alsa/alsa.conf.d/50-pipewire.conf>
           <${pkgs.pipewire}/share/alsa/alsa.conf.d/99-pipewire-default.conf>
@@ -83,14 +83,14 @@
         packages = {
           # CLI (default features)
           listener = rustPlatform.buildRustPackage (common // {
-            pname = "some-ting-listen";
-            cargoBuildFlags = [ "--bin" "some-ting-listen" ];
+            pname = "reasoning-ting-listen";
+            cargoBuildFlags = [ "--bin" "reasoning-ting-listen" ];
           });
           # menu-bar GUI (gui feature)
           gui = rustPlatform.buildRustPackage (common // {
-            pname = "some-ting";
+            pname = "reasoning-ting";
             buildFeatures = [ "gui" ];
-            cargoBuildFlags = [ "--bin" "some-ting" ];
+            cargoBuildFlags = [ "--bin" "reasoning-ting" ];
             # Same ALSA→PipeWire env as the CLI, plus: libappindicator-sys
             # dlopen()s libayatana-appindicator3.so.1 by bare soname, so RPATH
             # doesn't find it — inject it on LD_LIBRARY_PATH via the gApps wrapper.
@@ -112,8 +112,8 @@
             # (Nix's libasound otherwise can't see the host pipewire plugin).
             export ALSA_PLUGIN_DIR="${alsaPluginDir}/lib/alsa-lib"
             export ALSA_CONFIG_PATH="${alsaConf}"
-            echo "some-ting devshell: cargo + gtk3/alsa(+pipewire)/libxdo + snixembed + clippy"
-            echo "  cargo run --features gui --bin some-ting   # the tray (audio works in-shell)"
+            echo "reasoning-ting devshell: cargo + gtk3/alsa(+pipewire)/libxdo + snixembed + clippy"
+            echo "  cargo run --features gui --bin reasoning-ting   # the tray (audio works in-shell)"
             echo "  cargo clippy --features gui  |  cargo test  |  snixembed &  (i3 tray host)"
           '';
         };

@@ -1,5 +1,5 @@
-//! some-ting core: audio capture → Quindar tone detection → key injection.
-//! Shared by the CLI (`some-ting-listen`) and the menu-bar GUI (`some-ting`).
+//! reasoning-ting core: audio capture → Quindar tone detection → key injection.
+//! Shared by the CLI (`reasoning-ting-listen`) and the menu-bar GUI (`reasoning-ting`).
 
 pub mod audio;
 pub mod detect;

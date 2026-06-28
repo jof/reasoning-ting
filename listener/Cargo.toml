@@ -1,20 +1,20 @@
 [package]
-name = "some-ting-listen"
+name = "reasoning-ting-listen"
 version = "0.1.0"
 edition = "2021"
 description = "Detect TING Quindar tones and drive Claude voice dictation (cross-platform)"
 
 [lib]
-name = "some_ting"
+name = "reasoning_ting"
 path = "src/lib.rs"
 
 [[bin]]
-name = "some-ting-listen"       # CLI
+name = "reasoning-ting-listen"       # CLI
 path = "src/main.rs"
 
 [[bin]]
-name = "some-ting"             # menu-bar GUI (build with --features gui)
-path = "src/bin/some-ting.rs"
+name = "reasoning-ting"             # menu-bar GUI (build with --features gui)
+path = "src/bin/reasoning-ting.rs"
 required-features = ["gui"]
 
 [features]

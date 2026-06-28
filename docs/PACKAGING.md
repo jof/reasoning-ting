@@ -1,12 +1,12 @@
-# Packaging some-ting
+# Packaging reasoning-ting
 
-How some-ting is built and distributed per platform, and the reasoning behind
+How reasoning-ting is built and distributed per platform, and the reasoning behind
 each choice. The goal: someone who is *not* a command-line user can install it
 and get a working menu-bar/tray push-to-talk button.
 
 ## What the app needs from the OS
 
-some-ting is a desktop automation tool, and that shapes everything below. At
+reasoning-ting is a desktop automation tool, and that shapes everything below. At
 runtime it must:
 
 1. **Capture audio** from the sound server (PipeWire/Pulse on Linux, CoreAudio
@@ -52,7 +52,7 @@ The per-user `install.sh` path below is simply the *lighter* dev option (a plain
 `cargo build` links the host libasound directly).
 
 What we ship:
-- `listener/target/release/some-ting` (tray GUI) + `some-ting-listen` (headless
+- `listener/target/release/reasoning-ting` (tray GUI) + `reasoning-ting-listen` (headless
   CLI), built with the host toolchain against system GTK3 + libasound.
 - `packaging/linux/install.sh` → installs to `~/.local/bin`, drops a
   `.desktop` launcher + scalable icon under `~/.local/share`, and (with
@@ -72,7 +72,7 @@ zero-dependency baseline; AppImage is a nice-to-have, not a sandbox.
 
 ## macOS — signed .app bundle (the non-CLI target)
 
-`packaging/macos/` bundles the GUI into `some-ting.app` (LSUIElement menu-bar
+`packaging/macos/` bundles the GUI into `reasoning-ting.app` (LSUIElement menu-bar
 app), code-signs + notarizes it, and produces a DMG. CoreAudio + CGEvent mean
 none of the Linux ALSA/sandbox issues apply. The focus guard matches the
 frontmost **app** (a terminal can't cheaply expose its child PID), via the

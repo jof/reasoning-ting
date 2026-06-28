@@ -1,17 +1,17 @@
-//! some-ting menu-bar app: a status-tray icon that runs the detection engine
-//! (shared `some_ting` lib) and exposes controls. Build:
-//!   cargo build --release --features gui --bin some-ting
+//! reasoning-ting menu-bar app: a status-tray icon that runs the detection engine
+//! (shared `reasoning_ting` lib) and exposes controls. Build:
+//!   cargo build --release --features gui --bin reasoning-ting
 //! (Linux needs gtk3 + libayatana-appindicator dev packages; macOS/Windows don't.)
 //!
 //! Run with `--dry-run` to detect + show status WITHOUT sending keystrokes.
 //!
 //! Menu: status · Pause/Resume · Input device · Sensitivity · Focus guard ·
 //! Write Claude keybinding · Quit. Device/sensitivity/focus-guard choices are
-//! persisted (see `some_ting::prefs`). TODO: Setup wizard, launch-at-login.
+//! persisted (see `reasoning_ting::prefs`). TODO: Setup wizard, launch-at-login.
 
-use some_ting::icon::{self, IconState};
-use some_ting::prefs::Prefs;
-use some_ting::{audio, Config, Event, Params, Status};
+use reasoning_ting::icon::{self, IconState};
+use reasoning_ting::prefs::Prefs;
+use reasoning_ting::{audio, Config, Event, Params, Status};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
@@ -49,20 +49,20 @@ fn set_state(tray: &Option<TrayIcon>, cur: &mut IconState, want: IconState) {
         *cur = want;
         if let Some(t) = tray {
             let _ = t.set_icon(Some(make_icon(want)));
-            let _ = t.set_tooltip(Some(format!("some-ting — {}", state_label(want))));
+            let _ = t.set_tooltip(Some(format!("reasoning-ting — {}", state_label(want))));
         }
     }
 }
 
 /// One consistent log line per user-visible event:
-///   `some-ting │ <action>  <detail>`
+///   `reasoning-ting │ <action>  <detail>`
 /// Front of every normal-usage line so squeeze/release/submit read as a
 /// uniform stream (see the match arms in main()).
 fn log_line(action: &str, detail: &str) {
     if detail.is_empty() {
-        eprintln!("some-ting │ {action}");
+        eprintln!("reasoning-ting │ {action}");
     } else {
-        eprintln!("some-ting │ {action:<9} {detail}");
+        eprintln!("reasoning-ting │ {action:<9} {detail}");
     }
 }
 
@@ -101,7 +101,7 @@ fn spawn_engine(
     let s = stop.clone();
     let cfg = cfg.clone();
     std::thread::spawn(move || {
-        some_ting::run(&cfg, &s, move |st| {
+        reasoning_ting::run(&cfg, &s, move |st| {
             let _ = tx.send(st);
             // Wake the GUI event loop so it drains the channel *now*. The
             // tray-only loop's WaitUntil timer doesn't reliably fire on every
@@ -214,7 +214,7 @@ fn main() {
     );
 
     let keybind = MenuItem::new("Write Claude keybinding (f12)", true, None);
-    let quit = MenuItem::new("Quit some-ting", true, None);
+    let quit = MenuItem::new("Quit reasoning-ting", true, None);
 
     menu.append(&status).unwrap();
     menu.append(&PredefinedMenuItem::separator()).unwrap();
@@ -252,7 +252,7 @@ fn main() {
             tray_tried = true;
             match TrayIconBuilder::new()
                 .with_menu(Box::new(menu.clone()))
-                .with_tooltip("some-ting — TING push-to-talk")
+                .with_tooltip("reasoning-ting — TING push-to-talk")
                 .with_icon(make_icon(IconState::Idle))
                 .build()
             {

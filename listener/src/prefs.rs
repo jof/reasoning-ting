@@ -1,7 +1,7 @@
 //! Persisted GUI preferences — device, sensitivity, focus guard — so the menu-
 //! bar app remembers your choices across restarts.
 //!
-//! Stored at `$XDG_CONFIG_HOME/some-ting/config` (default `~/.config/...`) in a
+//! Stored at `$XDG_CONFIG_HOME/reasoning-ting/config` (default `~/.config/...`) in a
 //! dead-simple `key=value` line format — no serde dependency, and parsing
 //! splits on the *first* `=` only so ALSA device names like
 //! `front:CARD=BRIO,DEV=0` survive a round-trip intact.
@@ -26,13 +26,13 @@ impl Default for Prefs {
     }
 }
 
-/// `~/.config/some-ting/config` (honoring `$XDG_CONFIG_HOME`). `None` if no HOME.
+/// `~/.config/reasoning-ting/config` (honoring `$XDG_CONFIG_HOME`). `None` if no HOME.
 pub fn path() -> Option<PathBuf> {
     let base = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
-    Some(base.join("some-ting").join("config"))
+    Some(base.join("reasoning-ting").join("config"))
 }
 
 impl Prefs {
@@ -72,7 +72,7 @@ impl Prefs {
 
     pub fn serialize(&self) -> String {
         format!(
-            "# some-ting preferences\ndevice={}\nthreshold={}\nfocus_guard={}\n",
+            "# reasoning-ting preferences\ndevice={}\nthreshold={}\nfocus_guard={}\n",
             self.device.as_deref().unwrap_or(""),
             self.threshold,
             self.focus_guard,

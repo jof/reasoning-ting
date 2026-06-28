@@ -14,10 +14,10 @@ deploy/*.wav
 *.bin
 
 # Ghidra project files (RE, not part of the product)
-some-ting.gpr
-some-ting.lock
-some-ting.lock~
-some-ting.rep/
+reasoning-ting.gpr
+reasoning-ting.lock
+reasoning-ting.lock~
+reasoning-ting.rep/
 
 # Nix
 /result

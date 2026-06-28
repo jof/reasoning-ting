@@ -1981,6 +1981,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539"
 
 [[package]]
+name = "reasoning-ting-listen"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "cpal",
+ "enigo",
+ "hound",
+ "rustfft",
+ "tao",
+ "tray-icon",
+ "x11rb",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2166,21 +2181,6 @@ name = "smallvec"
 version = "1.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
-
-[[package]]
-name = "some-ting-listen"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "cpal",
- "enigo",
- "hound",
- "rustfft",
- "tao",
- "tray-icon",
- "x11rb",
-]
 
 [[package]]
 name = "stable_deref_trait"

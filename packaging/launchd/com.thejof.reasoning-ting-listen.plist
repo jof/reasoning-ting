@@ -1,32 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- some-ting listener — macOS launchd LaunchAgent.
+<!-- reasoning-ting listener — macOS launchd LaunchAgent.
      Install:
        cargo build --release      (on the Mac)
-       cp target/release/some-ting-listen /usr/local/bin/
-       cp packaging/launchd/com.thejof.some-ting-listen.plist ~/Library/LaunchAgents/
-       launchctl load ~/Library/LaunchAgents/com.thejof.some-ting-listen.plist
+       cp target/release/reasoning-ting-listen /usr/local/bin/
+       cp packaging/launchd/com.thejof.reasoning-ting-listen.plist ~/Library/LaunchAgents/
+       launchctl load ~/Library/LaunchAgents/com.thejof.reasoning-ting-listen.plist
      Grant the binary BOTH:
        System Settings > Privacy & Security > Accessibility   (key injection)
        System Settings > Privacy & Security > Microphone       (audio capture)
-     Logs: /tmp/some-ting-listen.{out,err}
+     Logs: /tmp/reasoning-ting-listen.{out,err}
      If the default input isn't the TING, add a --device arg below
-     (list with: some-ting-listen --list-devices). -->
+     (list with: reasoning-ting-listen --list-devices). -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.thejof.some-ting-listen</string>
+    <string>com.thejof.reasoning-ting-listen</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/some-ting-listen</string>
+        <string>/usr/local/bin/reasoning-ting-listen</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/tmp/some-ting-listen.out</string>
+    <string>/tmp/reasoning-ting-listen.out</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/some-ting-listen.err</string>
+    <string>/tmp/reasoning-ting-listen.err</string>
 </dict>
 </plist>

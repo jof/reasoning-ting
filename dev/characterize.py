@@ -86,7 +86,7 @@ if burst_peaks:
     fi = np.median(intro_f) if intro_f else F_IN
     fo = np.median(outro_f) if outro_f else F_OUT
     shifted = abs(fi - F_IN) > 30 or abs(fo - F_OUT) > 30
-    cmd = f"some-ting-listen --threshold {rec_thr:.4f}"
+    cmd = f"reasoning-ting-listen --threshold {rec_thr:.4f}"
     if shifted:
         cmd += f" --f-intro {fi:.0f} --f-outro {fo:.0f}"
         print("** tones are SHIFTED from 2525/2475 — add the --f-intro/--f-outro flags **")

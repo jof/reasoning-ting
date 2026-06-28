@@ -1,13 +1,13 @@
-# some-ting
+# reasoning-ting
 
 Hacking the **Teenage Engineering TING (EP-2350)** into a hardware push-to-talk
 trigger for Claude Code's voice dictation. Squeeze the handle → a tone is emitted
 → a PC daemon detects it → keydown/keyup of the voice key into the focused
 Claude window. Release to drop the transcript in; tap the white button to submit.
 
-Ships as a **menu-bar/tray app** (`some-ting`) with a status icon, input-device
+Ships as a **menu-bar/tray app** (`reasoning-ting`) with a status icon, input-device
 and sensitivity pickers, a focus-guard toggle, and a one-click keybinding writer
-— plus a headless CLI (`some-ting-listen`) for power users. Cross-platform (Linux
+— plus a headless CLI (`reasoning-ting-listen`) for power users. Cross-platform (Linux
 + macOS) off one Rust core; reproducible builds via a Nix flake.
 
 ## The device
@@ -52,8 +52,8 @@ long speech pauses. PC daemon Goertzel-detects them and synthesizes a keypress
 ## Repo layout
 - `deploy/` — **TING-side**: `main.py` (runs on the device) + `quindar_gen.py`
   (generates the tone WAVs). These files go on TINGDISK.
-- `listener/` — **the product**: Rust core + the `some-ting` tray GUI and
-  `some-ting-listen` CLI (same `some_ting::run` engine). See `listener/README.md`.
+- `listener/` — **the product**: Rust core + the `reasoning-ting` tray GUI and
+  `reasoning-ting-listen` CLI (same `reasoning_ting::run` engine). See `listener/README.md`.
 - `flake.nix` — Nix dev shell (`nix develop`) + per-platform builds
   (`nix build .#gui` / `.#listener`); the Linux binaries bundle the PipeWire
   ALSA route so `nix run .#gui` just works.
@@ -87,13 +87,13 @@ patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
 3. **Audio:** the TING (front-mic input) must be the system **default input**
    (it is) so both Claude's dictation and the daemon hear it.
 4. **App** — pick one:
-   - **Tray GUI** (recommended): `some-ting` (or `nix run .#gui`). Status icon
+   - **Tray GUI** (recommended): `reasoning-ting` (or `nix run .#gui`). Status icon
      (green = standing by, red = voice key held / recording), menu for input device /
      sensitivity / focus-guard / "Write Claude keybinding". Run from a terminal
-     to watch the event log (`some-ting │ squeeze   voice key down (f12)` …);
+     to watch the event log (`reasoning-ting │ squeeze   voice key down (f12)` …);
      device/sensitivity/focus-guard choices persist across restarts. On
      i3/sway/dwm run `snixembed` so the icon shows.
-   - **Headless CLI:** `some-ting-listen` (keeps running in a terminal).
+   - **Headless CLI:** `reasoning-ting-listen` (keeps running in a terminal).
      `--dry-run` watches detections without keystrokes; `--no-focus-guard`
      injects regardless of focus. The focus guard otherwise only injects when a
      window with `claude` in its process tree is focused.
@@ -106,10 +106,10 @@ patching/flashing**: we drop a `main.py` on the drive that does `import teenage`
 Prereqs installed: `xdotool`, venv has numpy/scipy/pyusb/mcp; `parec` for capture.
 
 ## App (listener/)
-Rust, cross-platform, off one core engine (`some_ting::run`): cpal audio →
+Rust, cross-platform, off one core engine (`reasoning_ting::run`): cpal audio →
 Goertzel-style tone detector → enigo key injection, with a native x11rb focus
-guard on Linux. Two front-ends — the `some-ting` tray GUI (`--features gui`) and
-the `some-ting-listen` CLI — share it. Detector + icon unit-tested (`cargo test`)
+guard on Linux. Two front-ends — the `reasoning-ting` tray GUI (`--features gui`) and
+the `reasoning-ting-listen` CLI — share it. Detector + icon unit-tested (`cargo test`)
 and validated against a real capture.
 
 Build (host toolchain): `cargo build --release --features gui` (Linux needs
@@ -117,5 +117,5 @@ Build (host toolchain): `cargo build --release --features gui` (Linux needs
 `packaging/linux/install.sh` for a per-user install. Or build reproducibly with
 Nix: `nix build .#gui`. On Linux "ALSA" is just the client API in front of
 **PipeWire** — both build paths route through it (see `docs/PACKAGING.md`).
-Validate the Claude keybinding without the TING: `some-ting-listen --test-key`.
+Validate the Claude keybinding without the TING: `reasoning-ting-listen --test-key`.
 The original Python prototype proved the pipeline and has been retired.

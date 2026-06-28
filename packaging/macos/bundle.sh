@@ -3,7 +3,7 @@
 # Run on a Mac with Xcode command-line tools + a Developer ID certificate.
 #
 #   SIGN_ID="Developer ID Application: Your Name (TEAMID)" \
-#   NOTARY_PROFILE="some-ting"   # from: xcrun notarytool store-credentials \
+#   NOTARY_PROFILE="reasoning-ting"   # from: xcrun notarytool store-credentials \
 #   ./packaging/macos/bundle.sh
 #
 # Skips signing/notarization if SIGN_ID is unset (produces an unsigned .app for
@@ -11,18 +11,18 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-APP="dist/some-ting.app"
-BIN="listener/target/release/some-ting"
+APP="dist/reasoning-ting.app"
+BIN="listener/target/release/reasoning-ting"
 PLIST="packaging/macos/Info.plist"
 ENTS="packaging/macos/entitlements.plist"
 
 echo "==> building release (gui)"
-( cd listener && cargo build --release --features gui --bin some-ting )
+( cd listener && cargo build --release --features gui --bin reasoning-ting )
 
 echo "==> assembling $APP"
-rm -rf "$APP" dist/some-ting.dmg
+rm -rf "$APP" dist/reasoning-ting.dmg
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/some-ting"
+cp "$BIN" "$APP/Contents/MacOS/reasoning-ting"
 cp "$PLIST" "$APP/Contents/Info.plist"
 # Optional icon: packaging/macos/AppIcon.icns -> Resources (add CFBundleIconFile to Info.plist)
 [ -f packaging/macos/AppIcon.icns ] && cp packaging/macos/AppIcon.icns "$APP/Contents/Resources/"
@@ -34,13 +34,13 @@ if [ -n "${SIGN_ID:-}" ]; then
     codesign --verify --strict --verbose=2 "$APP"
 
     echo "==> dmg"
-    hdiutil create -volname some-ting -srcfolder "$APP" -ov -format UDZO dist/some-ting.dmg
+    hdiutil create -volname reasoning-ting -srcfolder "$APP" -ov -format UDZO dist/reasoning-ting.dmg
 
     if [ -n "${NOTARY_PROFILE:-}" ]; then
         echo "==> notarize + staple"
-        xcrun notarytool submit dist/some-ting.dmg --keychain-profile "$NOTARY_PROFILE" --wait
+        xcrun notarytool submit dist/reasoning-ting.dmg --keychain-profile "$NOTARY_PROFILE" --wait
         xcrun stapler staple "$APP"
-        hdiutil create -volname some-ting -srcfolder "$APP" -ov -format UDZO dist/some-ting.dmg
+        hdiutil create -volname reasoning-ting -srcfolder "$APP" -ov -format UDZO dist/reasoning-ting.dmg
     else
         echo "(NOTARY_PROFILE unset — skipping notarization)"
     fi

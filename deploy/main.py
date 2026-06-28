@@ -1,4 +1,4 @@
-# some-ting --- TING EP-2350 as a push-to-talk trigger for Claude voice.
+# reasoning-ting --- TING EP-2350 as a push-to-talk trigger for Claude voice.
 #
 # Runs the stock app unchanged (import teenage), then:
 #  - outer handle switch engages -> 2525 Hz "intro" (talk START)
