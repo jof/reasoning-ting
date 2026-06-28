@@ -17,16 +17,38 @@ import ui, spl, time
 
 IN_SLOT, OUT_SLOT, SUBMIT_SLOT = 2, 3, 1  # sample slots repurposed for our tones
 
-def load_tones():
-    # (Re)load our tones into their slots. The stock app reloads the sample pack
-    # into ALL slots whenever the USB drive is mounted/ejected (examine_drive),
-    # which clobbers our tones — so we also re-assert on drive events (see cb).
+# slot -> our WAV file. Single source of truth for load_tones() and play().
+TONES = {
+    IN_SLOT:     "quindar_in.wav",
+    OUT_SLOT:    "quindar_out.wav",
+    SUBMIT_SLOT: "submit.wav",
+}
+
+def load_one(slot):
+    # Load our WAV into a slot, clobbering whatever's there. Swallow errors so a
+    # transient read failure can never take down the callback / the stock app.
     try:
-        f = open("quindar_in.wav", "rb");  spl.load_wav(IN_SLOT, f, "oneshot");  f.close()
-        f = open("quindar_out.wav", "rb"); spl.load_wav(OUT_SLOT, f, "oneshot"); f.close()
-        f = open("submit.wav", "rb");      spl.load_wav(SUBMIT_SLOT, f, "oneshot"); f.close()
+        f = open(TONES[slot], "rb"); spl.load_wav(slot, f, "oneshot"); f.close()
     except Exception:
         pass
+
+def load_tones():
+    for slot in TONES:
+        load_one(slot)
+
+def play(slot):
+    # Re-assert our WAV into the slot, then trigger it. We reload every time
+    # because the slot may have been clobbered by the stock ROM sample pack with
+    # NO Python event to notify us:
+    #   - USB mount/eject runs examine_drive (handled separately in cb), but
+    #   - power save (5 min idle on battery) reinitializes the spl engine back to
+    #     the ROM pack (slot 2=gunshot, 3=monkey-boy, 1=alarm) and fires no event
+    #     on wake — so a boot-time load is silently lost. Reloading at trigger
+    #     time is the only wake-proof option. (load_wav in the callback is already
+    #     proven safe — the t==4 path below does it.) A flash read is cheap and
+    #     doesn't wear the chip; the few-ms cost is immaterial for push-to-talk.
+    load_one(slot)
+    spl.trigger(-1, slot, True)
 
 load_tones()
 
@@ -44,7 +66,7 @@ def cb(message):
     v = message & 0xFFFF
     # White button (sample-play, mess_val 0) -> submit tone (PC daemon hits Enter).
     if t == 1 and v == 0:
-        spl.trigger(-1, SUBMIT_SLOT, True)
+        play(SUBMIT_SLOT)
         return                            # don't also play the stock sample
     if t == 2 and v == 0:
         return                            # swallow white-button release
@@ -58,9 +80,9 @@ def cb(message):
         return
     if on and not _pressed:
         _pressed = True
-        spl.trigger(-1, IN_SLOT, True)    # Quindar intro = talk START
+        play(IN_SLOT)                     # Quindar intro = talk START
     elif (not on) and _pressed:
         _pressed = False
-        spl.trigger(-1, OUT_SLOT, True)   # Quindar outro = talk STOP
+        play(OUT_SLOT)                    # Quindar outro = talk STOP
 
 ui.callback(cb)
