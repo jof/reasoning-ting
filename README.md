@@ -10,10 +10,11 @@ Engineering TING** (the adorable EP-2350 handheld mic/sampler 🎛️) into a
 ## How it works (the 10-second version) ⚡
 
 ```
-   🤏 squeeze handle  ──▶  🔊 2525 Hz beep  ──▶  🎧 PC hears it  ──▶  ⌨️  F12 down → 🎙️ recording
-   ✋ let go           ──▶  🔊 2475 Hz beep  ──▶  🎧 PC hears it  ──▶  ⌨️  F12 up   → 📝 transcript drops in
-   ⚪ white button     ──▶  🔊 3000 Hz beep  ──▶  🎧 PC hears it  ──▶  ⌨️  Enter    → 🚀 sent!
+🤏 squeeze   → 🔊 2525 Hz → ⌨️ F12 down → 🎙️ recording
+✋ let go     → 🔊 2475 Hz → ⌨️ F12 up   → 📝 transcript
+⚪ click      → 🔊 3000 Hz → ⌨️ Enter    → 🚀 sent!
 ```
+*(your TING beeps, the PC hears it, Claude listens 🎧)*
 
 Squeeze 🤏 → talk 🗣️ → release ✋ → tap the white button ⚪ → **off your words
 go**. No drivers, no patching, no flashing. Just **beeps**. Good old-fashioned,
