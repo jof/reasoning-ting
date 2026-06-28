@@ -164,7 +164,17 @@ fn main() {
     }
 
     let (tx, rx) = mpsc::channel::<Status>();
-    let event_loop = EventLoop::new();
+    #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
+    let mut event_loop = EventLoop::new();
+    // macOS: run as an "accessory" (menu-bar agent) so there's no Dock icon and
+    // no app-switcher (⌘-Tab) entry — Info.plist's LSUIElement is ignored once
+    // tao calls setActivationPolicy:, so we must set Accessory ourselves here
+    // (before the loop runs).
+    #[cfg(target_os = "macos")]
+    {
+        use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
+        event_loop.set_activation_policy(ActivationPolicy::Accessory);
+    }
     let proxy = event_loop.create_proxy();
     let mut cfg = base_config(dry_run, &prefs);
     log_line(

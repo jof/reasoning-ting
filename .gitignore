@@ -7,6 +7,9 @@ __pycache__/
 **/*.rs.bk
 *.pdb
 
+# macOS bundle output (packaging/macos/bundle.sh)
+/dist/
+
 # generated tone WAVs (regenerate: python deploy/quindar_gen.py)
 deploy/*.wav
 
