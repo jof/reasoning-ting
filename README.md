@@ -39,6 +39,15 @@ long speech pauses. PC daemon Goertzel-detects them and synthesizes a keypress
 - A constant **type-3 tick** event streams from firmware (the apparent "flood").
 - `spl.trigger(-1, slot, True/False)` plays a loaded sample; `spl.load_wav(slot,
   fh, playmode)` loads one. Playmodes: oneshot / hold / startstop.
+- **Power-save clobbers loaded samples.** After 5 min idle (battery only — USB
+  power never sleeps) the unit enters power save, which reinitializes the `spl`
+  engine back to the ROM stock pack (slot 2=gunshot, 3=monkey-boy, 1=alarm). Our
+  Python state survives the wake but **no event fires**, so a boot-time
+  `load_tones()` is silently lost and squeeze/release/submit play the stock ROM
+  samples until a power-cycle. Fix: `main.py` re-asserts the WAV into its slot
+  immediately before *every* trigger (`play()`), which is the only wake-proof
+  option since there's nothing to hook. Symptom that pinned it down: tones work
+  right after power-on, then revert to gunshot/tarzan once it's sat idle.
 
 ## Repo layout
 - `deploy/` — **TING-side**: `main.py` (runs on the device) + `quindar_gen.py`
