@@ -7,6 +7,10 @@ This is a deeply silly, earnest project that turns the **Teenage
 Engineering TING** (the adorable EP-2350 handheld mic/sampler 🎛️) into a
 **hardware push-to-talk button** for Claude Code's voice dictation.
 
+Groundation for the AI generation?
+
+![jof, grounding with the reasoning ting](./docs/jof-reasoning-ting.jpg)
+
 ## How it works (the 10-second version) ⚡
 
 ```
