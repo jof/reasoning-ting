@@ -272,6 +272,15 @@ fn main() {
         }
 
         while let Ok(st) = rx.try_recv() {
+            // While paused, drain and DISCARD. The engine thread we signaled to
+            // stop keeps emitting buffered Level events (~15/s) for a beat after
+            // pause; if we processed them they'd flip icon_state back to
+            // Listening/Keyed and the refresh re-push would then keep re-asserting
+            // that icon over the Paused glyph ("paused icon vanishes behind the
+            // green/red one"). Discarding keeps icon_state pinned to Paused.
+            if paused {
+                continue;
+            }
             match st {
                 Status::Listening { sample_rate } => {
                     let dev = cfg.device.as_deref().unwrap_or("default");
